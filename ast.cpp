@@ -128,7 +128,7 @@ void scope_exit(unordered_map<string, ll_node*>& symbol_table, int level_to_be_r
             ll_node* temp = x.second;
             if(temp->node->scope_level == level_to_be_removed) {
                 symbol_table[x.first] = temp->next;
-                // cout<<"removing "<<x.first<<endl;
+                // cout<<endl<<"removing "<<x.first<<endl;
             }
         }
     }
@@ -227,7 +227,7 @@ void check_scope(AST* root, unordered_map<string, ll_node*>& symbol_table, int s
     }
     else if (root->node_string=="ID") {
         // cout<<"d";
-        if(symbol_table.find(root->value)==symbol_table.end()){
+        if(symbol_table.find(root->value)==symbol_table.end() || symbol_table[root->value]==nullptr){
             cout<<"Scope Error: Undefined - "<<root->value<<endl;
         }
     }

@@ -30,18 +30,19 @@ main(int argc, char **argv)
   if (ret==0) printAST(ast_root);
 
   // Lab 2 Part 2 /////////////////////////////////////
+  if(ret==0){
+    unordered_map<string, ll_node*> symbol_table;
+    check_scope(ast_root, symbol_table, 0);
 
-  unordered_map<string, ll_node*> symbol_table;
-  check_scope(ast_root, symbol_table, 0);
-
-  for(auto x: symbol_table){
-    ll_node* list = x.second;
-    cout<<x.first<<"\t";
-    while(list){
-      cout<<list->node->scope_level<<"\t";
-      list=list->next;
-    }
-    cout<<endl;
+    // for(auto x: symbol_table){
+    //   ll_node* list = x.second;
+    //   cout<<x.first<<"\t";
+    //   while(list){
+    //     cout<<list->node->scope_level<<"\t";
+    //     list=list->next;
+    //   }
+    //   cout<<endl;
+    // }
   }
 
   ////////////////////////////////////////////////////
