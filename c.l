@@ -186,8 +186,8 @@ static int check_type(void)
     {
     case TYPEDEF_NAME:                /* previously defined */
         return TYPEDEF_NAME;
-    case ENUMERATION_CONSTANT:        /* previously defined */
-        return ENUMERATION_CONSTANT;
+    // case ENUMERATION_CONSTANT:        /* previously defined */
+    //     return ENUMERATION_CONSTANT;
     default:                          /* includes undefined */
         return IDENTIFIER;
     }
