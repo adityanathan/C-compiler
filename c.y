@@ -69,15 +69,15 @@ constant
 
 postfix_expression
 	: primary_expression										
-	| postfix_expression '(' ')'								{ $$ = createAST(1, "fn_call", {$1}); }
+	| postfix_expression '(' ')'								{ $$ = createAST(1, "fn_call", {$1, createAST(3, "argument_expression")}); }
 	| postfix_expression '(' argument_expression_list ')' 		{ $$ = createAST(1, "fn_call", {$1, $3}); }
 	| postfix_expression INC_OP									{ AST* inc = createAST(0, "INC_OP"); $$ = createAST(1, "postfix_expression", {$1, inc}); }
 	| postfix_expression DEC_OP									{ AST* dec = createAST(0, "DEC_OP"); $$ = createAST(1, "postfix_expression", {$1, dec}); }
 	;
 
 argument_expression_list
-	: assignment_expression										{ $$ = createAST(3, "argument_expression_list", {$1}); }
-	| argument_expression_list ',' assignment_expression		{ $$ = createAST(3, "argument_expression_list", {$1, $3}); }
+	: assignment_expression										{ $$ = createAST(3, "argument_expression", {$1}); }
+	| argument_expression_list ',' assignment_expression		{ push($1, {$3}); $$ = $1; }
 	;
 
 unary_expression
@@ -156,6 +156,7 @@ logical_or_expression
 
 conditional_expression
 	: logical_or_expression
+	| logical_or_expression '?' expression ':' conditional_expression			{ $$ = createAST(1, "?:", {$1, $3, $5}); }
 	;
 
 assignment_expression
@@ -164,8 +165,8 @@ assignment_expression
 	;
 
 expression
-	: assignment_expression					
-	| expression ',' assignment_expression 	{ $$ = createAST(3, "expression_list", {$3, $1}); }
+	: assignment_expression					{ $$ = createAST(3, "expression", {$1}); }
+	| expression ',' assignment_expression 	{ push($1, {$3}); $$ = $1; }
 	;
 
 declaration
@@ -174,15 +175,15 @@ declaration
 	;
 
 declaration_specifiers							
-	: type_specifier declaration_specifiers				{ $$ = createAST(3, "declaration_specifiers_list", {$2, $1}); }
-	| type_specifier									
-	| type_qualifier declaration_specifiers				{ $$ = createAST(3, "declaration_specifiers_list", {$2, $1}); }
-	| type_qualifier									
+	: declaration_specifiers type_specifier				{ push($1, {$2});  $$ = $1; }
+	| type_specifier									{ $$ = createAST(3, "type", {$1}); }
+	| declaration_specifiers type_qualifier				{ $$ = $1; }
+	| type_qualifier
 	;
 
 init_declarator_list
-	: init_declarator								
-	| init_declarator_list ',' init_declarator		{ $$ = createAST(3, "init_declarator_list", {$1, $3}); }
+	: init_declarator									{ $$ = createAST(3, "init_declarator", {$1}); }
+	| init_declarator_list ',' init_declarator			{ push($1, {$3});  $$ = $1; }
 	;
 
 init_declarator
@@ -209,27 +210,27 @@ type_qualifier
 
 declarator
 	: pointer direct_declarator		{ $$ = createAST(0, "declarator", {$1, $2}); }
-	| direct_declarator
+	| direct_declarator				{ $$ = createAST(0, "declarator", {createAST(0, "pointer"), $1}); }
 	;
 
 direct_declarator
 	: IDENTIFIER																	{ $$ = createAST(0, "ID", {}, $1); }
 	| '(' declarator ')'															{ $$ = $2; }
-	| direct_declarator '(' parameter_type_list ')'									{ $$ = createAST(1, "direct_declarator", {$1, $3}); }
-	| direct_declarator '(' ')'
+	| direct_declarator '(' parameter_type_list ')'									{ $$ = createAST(1, "fn_declaration", {$1, $3}); }
+	| direct_declarator '(' ')'														{ $$ = createAST(1, "fn_declaration", {$1, createAST(3, "parameters")}); }
 	;
 
 pointer
-	: '*' type_qualifier_list pointer		{ AST* star = createAST(0, "*"); $$ = createAST(1, "pointer", {star, $2, $3}); }
-	| '*' type_qualifier_list				{ AST* star = createAST(0, "*"); $$ = createAST(1, "pointer", {star, $2}); }
-	| '*' pointer							{ AST* star = createAST(0, "*"); $$ = createAST(1, "pointer", {star, $2}); }
-	| '*'									{ $$ = createAST(0, "*"); }
+	: '*' type_qualifier_list pointer		{ AST* star = createAST(0, "*"); push($3, {star}); $$ = $3; }
+	| '*' type_qualifier_list				{ AST* star = createAST(0, "*"); $$ = createAST(0, "pointer", {star}); }
+	| '*' pointer							{ AST* star = createAST(0, "*"); push($2, {star}); $$ = $2; }
+	| '*'									{ AST* star = createAST(0, "*"); $$ = createAST(0, "pointer", {star}); }
 	;
 
-type_qualifier_list
+type_qualifier_list							
 	: type_qualifier						
 	| type_qualifier_list type_qualifier	{ $$ = createAST(3, "type_qualifier_list", {$1, $2}); }
-	;
+	; // ignored. not included in ast
 
 
 parameter_type_list
@@ -238,8 +239,8 @@ parameter_type_list
 	;
 
 parameter_list
-	: parameter_declaration							
-	| parameter_list ',' parameter_declaration		{ $$ = createAST(3, "parameter_list", {$1, $3}); }
+	: parameter_declaration							{ $$ = createAST(3, "parameters", {$1}); }
+	| parameter_list ',' parameter_declaration		{ push($1, {$3}); $$ = $1; }
 	;
 
 parameter_declaration
@@ -261,13 +262,13 @@ labeled_statement
 	;
 
 compound_statement
-	: '{' '}'							{ $$ = createAST(4, "empty_compound_statement"); }
-	| '{'  block_item_list '}'			{ $$ = createAST(1, "compound_statement", {$2}); }
+	: '{' '}'							{ $$ = createAST(3, "compound_statement"); }
+	| '{'  block_item_list '}'			{ $$ = $2; }
 	;
 
 block_item_list
-	: block_item						
-	| block_item_list block_item		{ $$ = createAST(3, "block_item_list", {$1, $2}); }
+	: block_item						{ $$ = createAST(3, "compound_statement", {$1}); }
+	| block_item_list block_item		{ push($1, {$2}); $$ = $1; }
 	;
 
 block_item

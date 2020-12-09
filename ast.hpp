@@ -12,19 +12,18 @@ struct AST {
 };
 
 struct identifier_node {
-    string symtype; //"func" or "var"
+    string symtype; //"func" or "var" or "label" or "func_sig"
     string name; // identifier name
     int scope_level;
 
-    // for variables ////////////////
-    // string type; // not reliable
-    // string qualifier; // not reliable
+    // for variables and funcs ////////////////
+    string type;
+    int pointer_level; //number of stars
     /////////////////////////////////
 
-    // for funcs ////////////////////
-    // int num_args;
-    // vector<string> func_arg_types;
-    // string func_ret_type;
+    // for funcs only ////////////////////
+    vector<identifier_node*> func_args;
+    bool variadic = false;
     /////////////////////////////////
 };
 
@@ -72,7 +71,7 @@ void freeAST(AST* root);
 
 void printAST(AST* root);
 
-void check_scope( AST* root, unordered_map<string, ll_node*>& symbol_table, int scope_level);
+identifier_node* check_scope( AST* root, unordered_map<string, ll_node*>& symbol_table, int scope_level);
 
 void codegen();
 
