@@ -1,6 +1,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <fstream>
 using namespace std;
 
 struct AST {
@@ -21,15 +22,42 @@ struct identifier_node {
     /////////////////////////////////
 
     // for funcs ////////////////////
-    int num_args;
+    // int num_args;
     // vector<string> func_arg_types;
     // string func_ret_type;
     /////////////////////////////////
 };
 
+// Lab 2 Part 3 /////////////////////////////////////
+
+extern fstream file;
+
 struct ll_node {
     identifier_node* node;
     ll_node* next=nullptr;
+};
+
+struct cgen_node {
+    string symtype;
+    string name;
+
+    // For variables ////////////////
+    pair<string,int> type;
+    string value;
+    /////////////////////////////////
+
+    // the int in the pair for types is to indicate pointer level.
+    // It is supposed to be 0 by default.
+
+    // for funcs ////////////////////
+    pair<string,int> func_ret_type;
+    vector<pair<string,int>> func_arg_types;
+    /////////////////////////////////
+};
+
+struct list_node {
+    cgen_node* node;
+    list_node* next=nullptr;
 };
 
 AST* createAST(int nodetype, string node_string);
@@ -45,5 +73,7 @@ void freeAST(AST* root);
 void printAST(AST* root);
 
 void check_scope( AST* root, unordered_map<string, ll_node*>& symbol_table, int scope_level);
+
+void codegen();
 
 extern AST* ast_root;

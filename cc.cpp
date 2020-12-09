@@ -10,6 +10,8 @@ extern "C" int yylex();
 int yyparse();
 extern "C" FILE *yyin;
 
+fstream file;
+
 static void usage()
 {
   printf("Usage: cc <prog.c>\n");
@@ -34,15 +36,27 @@ main(int argc, char **argv)
     unordered_map<string, ll_node*> symbol_table;
     check_scope(ast_root, symbol_table, 0);
 
-    // for(auto x: symbol_table){
-    //   ll_node* list = x.second;
-    //   cout<<x.first<<"\t";
-    //   while(list){
-    //     cout<<list->node->scope_level<<"\t";
-    //     list=list->next;
-    //   }
-    //   cout<<endl;
-    // }
+    for(auto x: symbol_table){
+      ll_node* list = x.second;
+      cout<<x.first<<"\t";
+      while(list){
+        cout<<list->node->scope_level<<"\t";
+        list=list->next;
+      }
+      cout<<endl;
+    }
+  }
+
+  ////////////////////////////////////////////////////
+
+  // Lab 2 Part 3 ////////////////////////////////////
+  // fstream file;
+
+  if(ret==0){
+    file.open("a.ll", ios::trunc | ios::out | ios::in);
+    file << "hello world";
+    // codegen();
+    file.close();
   }
 
   ////////////////////////////////////////////////////

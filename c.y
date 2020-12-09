@@ -40,14 +40,14 @@ AST* ast_root;
 
 %token	<s> ALIGNAS ALIGNOF ATOMIC GENERIC NORETURN STATIC_ASSERT THREAD_LOCAL
 
-%type <a> primary_expression constant string postfix_expression
+%type <a> primary_expression constant postfix_expression
 %type <a> argument_expression_list unary_expression unary_operator multiplicative_expression
 %type <a> additive_expression shift_expression relational_expression equality_expression and_expression
 %type <a> exclusive_or_expression inclusive_or_expression logical_and_expression logical_or_expression
 %type <a> conditional_expression assignment_expression expression
 %type <a> declaration declaration_specifiers init_declarator_list init_declarator type_specifier type_qualifier
 %type <a> declarator direct_declarator pointer type_qualifier_list parameter_type_list parameter_list
-%type <a> parameter_declaration initializer initializer_list statement
+%type <a> parameter_declaration statement
 %type <a> labeled_statement compound_statement block_item_list block_item expression_statement selection_statement
 %type <a> iteration_statement jump_statement new_start translation_unit external_declaration function_definition
 
@@ -58,18 +58,13 @@ AST* ast_root;
 primary_expression
 	: IDENTIFIER 	{ $$ = createAST(0, "ID", {}, $1); }
 	| constant
-	| string
+	| STRING_LITERAL		{ $$ = createAST(0, "STR_LITERAL", {}, $1); }
 	| '(' expression ')'		{ $$ = $2; }
 	;
 
 constant
 	: I_CONSTANT		{ $$ = createAST(0, "I_CONSTANT", {}, $1); }		/* includes character_constant */
 	| F_CONSTANT		{ $$ = createAST(0, "F_CONSTANT", {}, $1); }
-	;
-
-string
-	: STRING_LITERAL		{ $$ = createAST(0, "STR_LITERAL", {}, $1); }
-	| FUNC_NAME				{ $$ = createAST(0, "FN_NAME"); }
 	;
 
 postfix_expression
@@ -170,7 +165,7 @@ assignment_expression
 
 expression
 	: assignment_expression					
-	| expression ',' assignment_expression 	{ $$ = createAST(1, "expression", {$1, $3}); }
+	| expression ',' assignment_expression 	{ $$ = createAST(3, "expression_list", {$3, $1}); }
 	;
 
 declaration
@@ -179,9 +174,9 @@ declaration
 	;
 
 declaration_specifiers							
-	: type_specifier declaration_specifiers				{ $$ = createAST(1, "declaration_specifiers", {$1, $2}); }
+	: type_specifier declaration_specifiers				{ $$ = createAST(3, "declaration_specifiers_list", {$2, $1}); }
 	| type_specifier									
-	| type_qualifier declaration_specifiers				{ $$ = createAST(1, "declaration_specifiers", {$1, $2}); }
+	| type_qualifier declaration_specifiers				{ $$ = createAST(3, "declaration_specifiers_list", {$2, $1}); }
 	| type_qualifier									
 	;
 
@@ -191,7 +186,7 @@ init_declarator_list
 	;
 
 init_declarator
-	: declarator '=' initializer				{ $$ = createAST(1, "=", {$1, $3}); }
+	: declarator '=' assignment_expression			{ $$ = createAST(1, "=", {$1, $3}); }
 	| declarator
 	;
 
@@ -250,17 +245,6 @@ parameter_list
 parameter_declaration
 	: declaration_specifiers declarator				{ $$ = createAST(1, "parameter_declaration", {$1, $2}); }
 	| declaration_specifiers
-	;
-
-initializer
-	: '{' initializer_list '}'			{ $$ = $2; }
-	| '{' initializer_list ',' '}'		{ $$ = $2; }
-	| assignment_expression				{ $$ = $1; }
-	;
-
-initializer_list	
-	: initializer
-	| initializer_list ',' initializer					{ $$ = createAST(3, "initializer_list", {$1, $3}); }
 	;
 
 statement

@@ -1,0 +1,5 @@
+digraph "CFG for 'simple_arith_with_arg' function" {
+	label="CFG for 'simple_arith_with_arg' function";
+
+	Node0xcb7a00 [shape=record,label="{entry}"];
+}
