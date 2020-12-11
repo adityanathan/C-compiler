@@ -15,7 +15,7 @@ fstream file;
 int register_counter = 0;
 int label_counter = 0;
 int loop_label_counter = 0;
-unordered_map<string, string> string_constants; // (register name, string constant)
+unordered_map<string, pair<string, int>> string_constants; // (register name, string constant)
 string func_ret_type;
 
 static void usage()
@@ -80,7 +80,7 @@ main(int argc, char **argv)
     
   // Lab 2 Part 3 ////////////////////////////////////
   if(ret==0){
-    file.open("a.ll", ios::trunc | ios::out | ios::in);
+    file.open("cc.ll", ios::trunc | ios::out | ios::in);
     // file << "hello world";
     unordered_map<string, ll_node*> symtable;
     try {
@@ -92,9 +92,8 @@ main(int argc, char **argv)
     // print string constants here
     file<<endl;
     for(auto x: string_constants){
-      string reg_name = x.first; string str = x.second;
-      int sz = str.size()+2-2;
-      string type = "[ "+to_string(sz)+" x i8 ]"
+      string reg_name = x.first; string str = x.second.first; int sz = x.second.second;
+      string type = "[ "+to_string(sz)+" x i8 ]";
       file<<reg_name<<" = "<<" private constant "<<type<<" c"<<str<<"\n";
     }
 

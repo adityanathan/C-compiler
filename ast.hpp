@@ -21,6 +21,7 @@ struct identifier_node {
 
     // for variables and funcs ///////////
     string type;
+    string ll_type;
     int pointer_level; //number of stars
     /////////////////////////////////
 
@@ -47,7 +48,7 @@ extern fstream file;
 extern int register_counter;
 extern int label_counter;
 extern int loop_label_counter;
-extern unordered_map<string, string> string_constants; // (register name, string constant)
+extern unordered_map<string, pair<string,int>> string_constants; // (register name, string constant)
 extern string func_ret_type; //stores return type of current function during codegen. (for return statements). WARNING: assuming nested function defns not allowed
 
 AST* createAST(int nodetype, string node_string);

@@ -320,7 +320,7 @@ translation_unit
 
 external_declaration
 	: function_definition
-	| declaration
+	| declaration								{ $$ = createAST(1, "GLOBAL", {$1}); }
 	;
 
 function_definition

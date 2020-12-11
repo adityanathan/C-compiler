@@ -315,8 +315,10 @@ identifier_node* check_scope(AST* root, unordered_map<string, ll_node*>& symbol_
 string print_type(string type, int pointer_level){
     stringstream ss;
     ss<<type;
-    for(int i=0; i<pointer_level; i++){
-        ss<<"*";
+    if(type!="void"){
+        for(int i=0; i<pointer_level; i++){
+            ss<<"*";
+        }
     }
     return ss.str();
 }
@@ -324,8 +326,10 @@ string print_type(string type, int pointer_level){
 string print_type(identifier_node* node){
     stringstream ss;
     ss<<node->type;
-    for(int i=0; i<node->pointer_level; i++){
-        ss<<"*";
+    if(node->type!="void"){
+        for(int i=0; i<node->pointer_level; i++){
+            ss<<"*";
+        }
     }
     return ss.str();
 }
@@ -336,6 +340,7 @@ identifier_node* cgen_declarator_node(AST* root, string type, unordered_map<stri
     newnode->pointer_level = root->children[0]->children.size();
     newnode->scope_level = scope_level;
     newnode->type = type;
+    newnode->ll_type = print_type(newnode->type, newnode->pointer_level);
 
     AST* direct_declarator_node = root->children[1];
     // direct_declarator could be a var or a func
@@ -353,7 +358,7 @@ identifier_node* cgen_declarator_node(AST* root, string type, unordered_map<stri
             newnode->func_args.push_back(param);
         }
     }
-    cout<<"name - "<<newnode->name<<endl;
+    // cout<<"name - "<<newnode->name<<endl;
     return newnode;
 }
 
@@ -392,16 +397,9 @@ string get_ll_name(identifier_node* node){
     return '\%'+node->llvm_name;
 }
 
-pair<string, string> new_allocate(string type){
-    stringstream ss;
-    string reg = get_register();
-    ss<<reg<<" = alloca "<<type<<"\n";
-    return make_pair(reg, ss.str());
-}
-
 string allocate(identifier_node* node){
     stringstream ss;
-    ss<<get_ll_ptr(node)<<" = alloca "<<node->type<<"\n";
+    ss<<get_ll_ptr(node)<<" = alloca "<<node->ll_type<<"\n";
     return ss.str();
 }
 
@@ -409,7 +407,7 @@ pair<string,string> load(identifier_node* node){
     // ret = register, llvm_code
     stringstream ss;
     string reg = get_register();
-    string type = node->type;
+    string type = node->ll_type;
     ss<<reg<<" = load "<<type<<", "<<type<<"* "<<get_ll_ptr(node)<<"\n";
     return make_pair(reg, ss.str());
 }
@@ -418,7 +416,7 @@ string store(identifier_node* node, string register_val){
     // returns llvm code
     // register_val could be a reg or a val
     stringstream ss;
-    string type = node->type;
+    string type = node->ll_type;
     ss<<"store "<<type<<" "<<register_val<<", "<<type<<"* "<<get_ll_ptr(node)<<"\n";
     return ss.str();
 }
@@ -426,16 +424,26 @@ string store(identifier_node* node, string register_val){
 string bitcast(pair<string, string> reg, string type2){
     // input - (type1, register_name1) , type2 => typecast to type2
     // return register with typecasted result
+    if(reg.first == type2){
+        return reg.second; // no typecasting necessary
+    }
+
     unordered_map<string, int> temp_d = {{"i1", 0}, {"i8", 1}, {"i16", 2}, {"i32", 3}, {"i64", 4}, {"float", 5}, {"double", 7}};
     string cast;
-    if(temp_d.at(reg.first)<=4 && temp_d.at(type2)<=4){
-        if(temp_d.at(reg.first) > temp_d.at(type2)) cast = "trunc"; 
-        else cast = "sext";
-    } else if (temp_d.at(reg.first)<=4 && temp_d.at(type2)>4) cast = "sitofp";
-    else if (temp_d.at(reg.first)>4 && temp_d.at(type2)<=4) cast = "fptosi";
-    else {
-        if(temp_d.at(reg.first) > temp_d.at(type2)) cast = "fptrunc"; 
-        else cast = "fpext";
+    string _type = reg.first;
+    if(_type != "i1" && _type != "i8" && _type != "i16" && _type != "i32" && _type != "i64" && _type != "float" && _type != "double"){
+        cast = "bitcast"; // its a pointer
+    } else {
+        if(temp_d.at(reg.first)<=4 && temp_d.at(type2)<=4){
+            if(temp_d.at(reg.first) > temp_d.at(type2)) cast = "trunc"; 
+            else cast = "sext";
+        } 
+        else if (temp_d.at(reg.first)<=4 && temp_d.at(type2)>4) cast = "sitofp";
+        else if (temp_d.at(reg.first)>4 && temp_d.at(type2)<=4) cast = "fptosi";
+        else {
+            if(temp_d.at(reg.first) > temp_d.at(type2)) cast = "fptrunc"; 
+            else cast = "fpext";
+        }
     }
 
     stringstream ss;
@@ -445,19 +453,19 @@ string bitcast(pair<string, string> reg, string type2){
     return new_reg;
 }
 
-pair<pair<string, string>, pair<string, string>> type_clash(pair<string, string> reg1, pair<string, string> reg2){
-    // Expected to print code itself
-    // first string = type, second string = reg_name
-    unordered_map<string, int> temp_d = {{"i1", 0}, {"i8", 1}, {"i16", 2}, {"i32", 3}, {"i64", 4}, {"float", 5}, {"double", 7}};
-    if(temp_d.at(reg1.first)>temp_d.at(reg2.first)){
-        string _t = bitcast(reg2, reg1.first);
-        return {reg1, {reg1.first, _t}};
-    }
-    else {
-        string _t = bitcast(reg1, reg2.first);
-        return {{reg2.first, _t}, reg2};
-    }
-}
+// pair<pair<string, string>, pair<string, string>> type_clash(pair<string, string> reg1, pair<string, string> reg2){
+//     // Expected to print code itself
+//     // first string = type, second string = reg_name
+//     unordered_map<string, int> temp_d = {{"i1", 0}, {"i8", 1}, {"i16", 2}, {"i32", 3}, {"i64", 4}, {"float", 5}, {"double", 7}};
+//     if(temp_d.at(reg1.first)>temp_d.at(reg2.first)){
+//         string _t = bitcast(reg2, reg1.first);
+//         return {reg1, {reg1.first, _t}};
+//     }
+//     else {
+//         string _t = bitcast(reg1, reg2.first);
+//         return {{reg2.first, _t}, reg2};
+//     }
+// }
 
 pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>& symtable, int scope_level);
 
@@ -466,17 +474,17 @@ pair<string, string> cgen_binary_exp(AST* root, unordered_map<string, ll_node*>&
     // cout<<"enter"<<endl;
     string root_op = root->node_string;
     string left_type, left_reg, right_type, right_reg;
-    cout<<"left enter"<<endl;
+    // cout<<"left enter"<<endl;
     tie(left_type, left_reg) = cgen_expression(root->children[0], symtable, scope_level);
-    cout<<"right enter"<<endl;
+    // cout<<"right enter"<<endl;
     tie(right_type, right_reg) = cgen_expression(root->children[1], symtable, scope_level);
-    if(left_type != right_type) {
-        auto _t2 = type_clash({left_type, left_reg},{right_type, right_reg});
-        tie(left_type, left_reg) = _t2.first;
-        tie(right_type, right_reg) = _t2.second;
-    }
+    // if(left_type != right_type) {
+    //     auto _t2 = type_clash({left_type, left_reg},{right_type, right_reg});
+    //     tie(left_type, left_reg) = _t2.first;
+    //     tie(right_type, right_reg) = _t2.second;
+    // }
     string result_register = get_register();
-    cout<<"recursed"<<endl;
+    // cout<<"recursed"<<endl;
     if(root_op == "OR_OP" || root_op == "|") {
         // assumption = for or_op type is i1. Typing not implemented.
         file<<result_register<<" = "<<"or "<<left_type<<" "<<left_reg<<", "<<right_reg<<"\n";
@@ -505,9 +513,10 @@ pair<string, string> cgen_binary_exp(AST* root, unordered_map<string, ll_node*>&
         file<<result_register<<" = "<<temp_d.at(root_op)<<" "<<left_type<<" "<<left_reg<<", "<<right_reg<<"\n";
     }
     else if(root_op == "+" || root_op == "-" ||root_op == "*" || root_op == "/" || root_op == "%") {
+        unordered_map<string, string> temp_d;
         if(left_type == "float" || left_type == "double"){
-            unordered_map<string, string> temp_d = {{"+", "fadd"}, {"-","fsub"}, {"*","fmul"}, {"/","fdiv"},{"%","frem"}};
-        } else { unordered_map<string, string> temp_d = {{"+", "add"}, {"-","sub"}, {"*","mul"}, {"/","sdiv"},{"%","srem"}}; }
+             temp_d = {{"+", "fadd"}, {"-","fsub"}, {"*","fmul"}, {"/","fdiv"},{"%","frem"}};
+        } else { temp_d = {{"+", "add"}, {"-","sub"}, {"*","mul"}, {"/","sdiv"},{"%","srem"}}; }
         file<<result_register<<" = "<<temp_d.at(root_op)<<" "<<left_type<<" "<<left_reg<<", "<<right_reg<<"\n";
     }
     // cout<<"exit "<<endl;
@@ -530,33 +539,32 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
     else if (root_op=="assignment"){
         // assuming lval = ID
         // returns assigned value
-        if(root->children[0]->node_string != "ID") {
-            cout<<"Error: assignment requires lvalue to be an identifier"<<endl;
-            return cgen_expression(root->children[1], symtable, scope_level);
-        }
+        if(root->children[0]->node_string != "ID")
+            throw string("Error: assignment requires lvalue to be an identifier\n");
+
         identifier_node* id = get_sym(root->children[0], symtable);
         string type, result;
         tie(type, result) = cgen_expression(root->children[1], symtable, scope_level);
-        if(type!=id->type) {
-            string temp = bitcast(make_pair(type, result), id->type);
-            result = temp; type = id->type;
-        }
+        // if(type!=id->type) {
+        //     string temp = bitcast(make_pair(type, result), id->type);
+        //     result = temp; type = id->type;
+        // }
         file<<store(id, result);
-        return make_pair(id->type, result);
+        return make_pair(id->ll_type, result);
     }
     else if (root_op=="ID"){
         identifier_node* id = get_sym(root, symtable);
         pair<string,string> temp = load(id);
         file<<temp.second;
-        return make_pair(id->type, temp.first);
+        return make_pair(id->ll_type, temp.first);
     }
     else if (root_op=="?:"){
         string _temp, cond;
         tie(_temp, cond) = cgen_expression(root->children[0], symtable, scope_level);
-        if(_temp!="i1"){
-            string _t1 = bitcast({_temp, cond}, "i1");
-            cond = _t1; _temp = "i1";
-        }
+        // if(_temp!="i1"){
+        //     string _t1 = bitcast({_temp, cond}, "i1");
+        //     cond = _t1; _temp = "i1";
+        // }
         string btrue = get_label("btrue");
         string bfalse = get_label("bfalse", true);
         string bend = get_label("bend", true);
@@ -576,11 +584,11 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
 
         file<<endl;
         file<<bend<<":\n";
-        if(false_type != true_type) {
-            auto _t2 = type_clash({true_type, true_reg},{false_type, false_reg});
-            tie(true_type, true_reg) = _t2.first;
-            tie(false_type, false_reg) = _t2.second;
-        }
+        // if(false_type != true_type) {
+        //     auto _t2 = type_clash({true_type, true_reg},{false_type, false_reg});
+        //     tie(true_type, true_reg) = _t2.first;
+        //     tie(false_type, false_reg) = _t2.second;
+        // }
         string result_register = get_register();
         file<<result_register<<" = "<<"phi "<<true_type<<" [ "<<true_reg<<", "<<btrue<<" ], "<<" [ "<<false_reg<<", "<<bfalse<<" ]"<<"\n";
         return make_pair(true_type, result_register);
@@ -598,37 +606,28 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         if(unary_op == "INC_OP" || unary_op =="DEC_OP"){
             unordered_map<string, string> temp_d = {{"INC_OP", "add"}, {"DEC_OP","sub"}};
             string type, result;
-            if(root->children[1]->node_string != "ID"){
-                cout<<"Error: increment and decrement operators can only be applied to identifiers"<<endl;
-                return cgen_expression(root->children[1], symtable, scope_level);
-            }
+            if(root->children[1]->node_string != "ID") throw string("Error: increment and decrement operators can only be applied to identifiers\n");
             identifier_node* id = get_sym(root->children[1], symtable);
             pair<string,string> temp = load(id);
             file<<temp.second;
 
             string old_val = temp.first;
             string new_val = get_register();
-            file<<new_val<<" = "<<temp_d[root_op]<<" "<<id->type<<" "<<old_val<<", "<<"1"<<"\n";
+            file<<new_val<<" = "<<temp_d[root_op]<<" "<<id->ll_type<<" "<<old_val<<", "<<"1"<<"\n";
             file<<store(id, new_val);
-            return make_pair(id->type, new_val);
+            return make_pair(id->ll_type, new_val);
         }
         else if (unary_op == "&"){
-            if(root->children[1]->node_string != "ID"){
-                cout<<"Error: & operator can only be applied to identifiers"<<endl;
-                return cgen_expression(root->children[1], symtable, scope_level);
-            }
+            if(root->children[1]->node_string != "ID") throw string("Error: & operator can only be applied to identifiers\n");
             identifier_node* id = get_sym(root->children[1], symtable);
-            return make_pair(id->type, get_ll_ptr(id));
+            return make_pair(print_type(id->type, id->pointer_level+1), get_ll_ptr(id));
         }
         else if (unary_op == "*"){
-            if(root->children[1]->node_string != "ID"){
-                cout<<"Error: * operator can only be applied to identifiers"<<endl;
-                return cgen_expression(root->children[1], symtable, scope_level);
-            }
+            if(root->children[1]->node_string != "ID") throw string("Error: * operator can only be applied to identifiers\n");
             identifier_node* id = get_sym(root->children[1], symtable);
             pair<string, string> temp = load(id);
             file<<temp.second;
-            return make_pair(id->type, temp.first);
+            return make_pair(print_type(id->type, id->pointer_level-1), temp.first);
         }
         else if (unary_op == "+"){
             return cgen_expression(root->children[1], symtable, scope_level);
@@ -646,51 +645,75 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         else if (unary_op == "~" || unary_op == "!") {
             string type, reg;
             tie(type, reg) = cgen_expression(root->children[1], symtable, scope_level);
-            if(unary_op == "!" && type != "i1") {
-                string _t3 = bitcast({type, reg}, "i1");
-                reg = _t3;
-                type = "i1";
-            }
+            // if(unary_op == "!" && type != "i1") {
+            //     string _t3 = bitcast({type, reg}, "i1");
+            //     reg = _t3;
+            //     type = "i1";
+            // }
             string new_val = get_register();
             file<<new_val<<" = xor "<<type<<" "<<reg<<", -1"<<"\n";
             return make_pair(type, new_val);
         }
     }
     else if (root_op == "fn_call"){
-        stringstream ss;
         string result_reg = get_register();
         identifier_node* fn = get_sym(root->children[0], symtable);
-        
-        ss<<result_reg<<" = "<<"call "<<fn->type<<" @"<<fn->name<<"(";
-        string separator = "";
+
+        vector<pair<string, string>> args;
         for(auto x: root->children[1]->children){
-            string type, reg;
-            tie(type, reg) = cgen_expression(x, symtable, scope_level);
-            ss<<separator<<" "<<type<<" "<<reg;
-            separator = ",";
+            if(x->node_string!="STR_LITERAL"){
+                string type, reg;
+                tie(type, reg) = cgen_expression(x, symtable, scope_level);
+                args.push_back({type, reg});
+            } else {
+                args.push_back({"",""});
+            }
         }
-        ss<<")\n";
-        file<<ss.str();
-        return make_pair(fn->type, result_reg);
+        
+        if(fn->variadic){
+            file<<result_reg<<" = "<<"call "<<fn->ll_type<<" (";
+            string sep = "";
+            for(auto x: fn->func_args){
+                file<<sep<<" "<<x->ll_type;
+                sep = ",";
+            }
+            file<<", ... ) @"<<fn->name<<"(";
+        }
+        else { 
+            file<<result_reg<<" = "<<"call "<<fn->ll_type<<" @"<<fn->name<<"(";
+        }
+        string separator = "";
+        vector<AST*> _temp = root->children[1]->children;
+        for(int i=0; i<_temp.size(); i++){
+                AST* x = _temp[i];
+                string type, reg;
+                tie(type, reg) = args[i];
+                file<<separator;
+                if(x->node_string!="STR_LITERAL"){
+                    file<<" "<<type<<" "<<reg;
+                } else {
+                    cgen_expression(x, symtable, scope_level);
+                }
+                separator = ",";
+        }
+        file<<")\n";
+        return make_pair(fn->ll_type, result_reg);
     }
     else if (root_op == "postfix_expression"){
         // This is wrong. This does normal prefix
         string op = root->children[1]->node_string;
         unordered_map<string, string> temp_d = {{"INC_OP", "add"}, {"DEC_OP","sub"}};
         string type, result;
-        if(root->children[0]->node_string != "ID"){
-            cout<<"Error: increment and decrement operators can only be applied to identifiers"<<endl;
-            return cgen_expression(root->children[0], symtable, scope_level);
-        }
+        if(root->children[0]->node_string != "ID") throw string("Error: increment and decrement operators can only be applied to identifiers\n");
         identifier_node* id = get_sym(root->children[0], symtable);
         pair<string,string> temp = load(id);
         file<<temp.second;
 
         string old_val = temp.first;
         string new_val = get_register();
-        file<<new_val<<" = "<<temp_d[op]<<" "<<id->type<<" "<<old_val<<", "<<"1"<<"\n";
+        file<<new_val<<" = "<<temp_d[op]<<" "<<id->ll_type<<" "<<old_val<<", "<<"1"<<"\n";
         file<<store(id, new_val);
-        return make_pair(id->type, new_val);
+        return make_pair(id->ll_type, new_val);
     }
     else if (root_op == "I_CONSTANT"){
         string value = root->value;
@@ -704,37 +727,51 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         file<<reg<<" = fadd float 0.0, "<<value<<"\n";
         return make_pair("float", reg);
     }
-    else if (root_op == "STRING_LITERAL"){
+    else if (root_op == "STR_LITERAL"){
         string str = root->value;
-        str.insert(str.size()-1,"\\0A\\00");
+        int sz = str.size() - 2 + 1;
+        str.insert(str.size()-1,"\\00");
         string s = '@'+string("str.")+to_string(register_counter);
         register_counter++;
-        string_constants[s] = str;
+        string_constants[s] = {str, sz};
 
-        int sz = str.size()+2-2;
         string type = "[ "+to_string(sz)+" x i8 ]";
 
         file<<"i8* getelementptr inbounds ("<<type<<", "<<type<<"* "<<s<<", i64 0, i64 0)";
 
         return make_pair(type, s); // should never be used.
+    } 
+    else if (root_op == "cast_expression"){
+        string _type, _reg;
+        tie(_type, _reg) = cgen_expression(root->children[1], symtable, scope_level); //if expr is a pointer - it will be reflected in _type.
+
+        AST* type_node = root->children[0];
+        string type = get_type(type_node->children[0]);
+        int pointer_level = 0;
+        if(type_node->children.size()>1)
+            pointer_level = type_node->children[1]->children.size();
+        
+        string res_reg = bitcast({_type, _reg}, print_type(type, pointer_level));
+        return make_pair(print_type(type, pointer_level), res_reg);
+        
     }
     // cout<<"cgen expr exit"<<endl;
 }
 
 identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int scope_level) {
     if(root->node_string=="FUNC"){
-        cout<<"a"<<endl;
+        // cout<<"a"<<endl;
         stringstream ss;
         string type = get_type(root->children[0]);
         identifier_node* newnode = cgen_declarator_node(root->children[1], type, symtable, scope_level);
         add_to_symtable(symtable, newnode);
         
-        func_ret_type = newnode->type;
+        func_ret_type = newnode->ll_type;
 
-        ss<<"define "<<newnode->type<<" @"<<newnode->name<<"(";
+        ss<<"define "<<func_ret_type<<" @"<<newnode->name<<"(";
         string separator = "";
         for(auto x: newnode->func_args){
-            ss<<separator<<x->type<<" "<<get_ll_name(x);
+            ss<<separator<<x->ll_type<<" "<<get_ll_name(x);
             separator = ", ";
         }
         if(newnode->variadic) ss<<", ...";
@@ -752,24 +789,25 @@ identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int 
             file<<"ret void"<<endl;
         }
         else {
-            file<<"ret "<<type<<" undef"<<endl; // safety net
+            file<<"ret "<<func_ret_type<<" undef"<<endl; // safety net
         }
         file<<"}\n"<<endl;
     }
     else if (root->node_string == "parameter_declaration") {
-        cout<<"b"<<endl;
+        // cout<<"b"<<endl;
         identifier_node* newnode = new identifier_node;
         newnode->symtype = "var";
         newnode->type = get_type(root->children[0]);
         AST* declarator_node = root->children[1];
         newnode->pointer_level = declarator_node->children[0]->children.size();
+        newnode->ll_type = print_type(newnode->type, newnode->pointer_level);
         newnode->name = declarator_node->children[1]->value;
         newnode->scope_level = scope_level;
         add_to_symtable(symtable, newnode);
         return newnode;
     }
     else if (root->node_string == "declaration"){
-        cout<<"c"<<endl;
+        // cout<<"c"<<endl;
         string type = get_type(root->children[0]);
         AST* init_declarator = root->children[1];
         for(auto x: init_declarator->children) {
@@ -779,11 +817,11 @@ identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int 
                 tie(rval_type, rval_reg) = cgen_expression(x->children[1], symtable, scope_level); // rval is an assignment_expression
                 newnode = cgen_declarator_node(x->children[0], type, symtable, scope_level); // returns the LHS variable - definitely a var
                 add_to_symtable(symtable, newnode); // needs to be added before so that llvm_name is properly defined for alloca and store
-                if(newnode->type != rval_type){
-                    string _t3 = bitcast({rval_type, rval_reg}, newnode->type);
-                    rval_reg = _t3;
-                    rval_type = newnode->type;
-                }
+                // if(newnode->type != rval_type){
+                //     string _t3 = bitcast({rval_type, rval_reg}, newnode->type);
+                //     rval_reg = _t3;
+                //     rval_type = newnode->type;
+                // }
                 file<<allocate(newnode);
                 file<<store(newnode, rval_reg);
             }
@@ -794,10 +832,10 @@ identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int 
                     scope_exit(symtable, scope_level+1); // To remove the function args from scope. Since it has no compound statement
                     
                     stringstream ss;
-                    ss<<"declare "<<newnode->type<<" @"<<newnode->name<<"(";
+                    ss<<"declare "<<newnode->ll_type<<" @"<<newnode->name<<"(";
                     string separator = "";
                     for(auto x: newnode->func_args){
-                        ss<<separator<<x->type<<" "<<get_ll_name(x);
+                        ss<<separator<<x->ll_type<<" "<<get_ll_name(x);
                         separator = ", ";
                     }
                     if(newnode->variadic) ss<<", ...";
@@ -811,7 +849,7 @@ identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int 
         }
     }
     else if (root->node_string=="labeled_statement") {
-        cout<<"d"<<endl;
+        // cout<<"d"<<endl;
         identifier_node* newnode = new identifier_node;
         newnode->symtype = "label";
         newnode->name = root->children[0]->value;
@@ -828,17 +866,17 @@ identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int 
         cgen(root->children[1], symtable, scope_level);
     }
     else if (root->node_string == "ifte"){
-        cout<<"e"<<endl;
+        // cout<<"e"<<endl;
         string btrue = get_label("btrue");
         string bfalse = get_label("bfalse", true);
         string bend = get_label("bend", true);
         
         string _temp, cond;
         tie(_temp, cond) = cgen_expression(root->children[0], symtable, scope_level);
-        if(_temp!="i1"){
-            string _t1 = bitcast({_temp, cond}, "i1");
-            cond = _t1; _temp = "i1";
-        }
+        // if(_temp!="i1"){
+        //     string _t1 = bitcast({_temp, cond}, "i1");
+        //     cond = _t1; _temp = "i1";
+        // }
         if(root->children.size()>2){
             file<<"br i1 "<<cond<<", "<<"label %"<<btrue<<", label %"<<bfalse<<"\n";
         } else {
@@ -861,7 +899,7 @@ identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int 
         file<<bend<<":\n";
     }
     else if (root->node_string == "while"){
-        cout<<"f"<<endl;
+        // cout<<"f"<<endl;
         // check condition, body, end_loop
         string cond_label = get_loop_label("while_condition");
         string body_label = get_loop_label("while_body", true);
@@ -873,10 +911,10 @@ identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int 
         file<<cond_label<<":\n";
         string _temp, cond;
         tie(_temp, cond) = cgen_expression(root->children[0], symtable, scope_level);
-        if(_temp!="i1"){
-            string _t1 = bitcast({_temp, cond}, "i1");
-            cond = _t1; _temp = "i1";
-        }
+        // if(_temp!="i1"){
+        //     string _t1 = bitcast({_temp, cond}, "i1");
+        //     cond = _t1; _temp = "i1";
+        // }
         file<<"br i1 "<<cond<<", "<<"label %"<<body_label<<", label %"<<end_label<<"\n";
 
         file<<endl;
@@ -888,7 +926,7 @@ identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int 
         file<<end_label<<":\n";
     }
     else if (root->node_string == "jump"){
-        cout<<"g"<<endl;
+        // cout<<"g"<<endl;
         // will always have atleast one child
         string op = root->children[0]->node_string;
         if(op == "GOTO"){
@@ -923,27 +961,27 @@ identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int 
             } else {
                 string type, reg;
                 tie(type, reg) = cgen_expression(root->children[1], symtable, scope_level);
-                if(func_ret_type!=type){
-                    string _t1 = bitcast({type, reg}, func_ret_type);
-                    reg = _t1; type = func_ret_type;
-                }
+                // if(func_ret_type!=type){
+                //     string _t1 = bitcast({type, reg}, func_ret_type);
+                //     reg = _t1; type = func_ret_type;
+                // }
                 file<<"ret "<<func_ret_type<<" "<<reg<<"\n";
             }
         }
     }
     else if (root->node_string=="compound_statement") {
-        cout<<"h"<<endl;
+        // cout<<"h"<<endl;
         for(auto x: root->children) {
             cgen(x, symtable, scope_level+1);
         }
         scope_exit(symtable, scope_level+1);
     }
     else if (root->node_string=="expression") {
-        cout<<"j"<<endl;
+        // cout<<"j"<<endl;
         cgen_expression(root, symtable, scope_level);
     }
     else {
-        cout<<"k"<<endl;
+        // cout<<"k"<<endl;
         for(auto x: root->children) {
             cgen(x, symtable, scope_level);
         }

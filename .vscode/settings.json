@@ -16,6 +16,10 @@
         "istream": "cpp",
         "ratio": "cpp",
         "type_traits": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "atomic": "cpp",
+        "*.tcc": "cpp",
+        "streambuf": "cpp",
+        "memory_resource": "cpp"
     }
 }
