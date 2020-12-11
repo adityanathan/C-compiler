@@ -44,7 +44,7 @@ AST* ast_root;
 %type <a> argument_expression_list unary_expression unary_operator multiplicative_expression
 %type <a> additive_expression shift_expression relational_expression equality_expression and_expression
 %type <a> exclusive_or_expression inclusive_or_expression logical_and_expression logical_or_expression
-%type <a> conditional_expression assignment_expression expression cast_expression
+%type <a> conditional_expression assignment_expression expression cast_expression type_name
 %type <a> declaration declaration_specifiers init_declarator_list init_declarator type_specifier type_qualifier
 %type <a> declarator direct_declarator pointer type_qualifier_list parameter_type_list parameter_list
 %type <a> parameter_declaration statement

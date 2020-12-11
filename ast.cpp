@@ -312,6 +312,24 @@ identifier_node* check_scope(AST* root, unordered_map<string, ll_node*>& symbol_
 
 /////////////////////////////// Lab 2 Part 3 /////////////////////////////////////////////////////////////////////////////////
 
+string print_type(string type, int pointer_level){
+    stringstream ss;
+    ss<<type;
+    for(int i=0; i<pointer_level; i++){
+        ss<<"*";
+    }
+    return ss.str();
+}
+
+string print_type(identifier_node* node){
+    stringstream ss;
+    ss<<node->type;
+    for(int i=0; i<node->pointer_level; i++){
+        ss<<"*";
+    }
+    return ss.str();
+}
+
 identifier_node* cgen_declarator_node(AST* root, string type, unordered_map<string, ll_node*>& symbol_table, int scope_level){
     // input AST node has to be a declarator node only
     identifier_node* newnode = new identifier_node;
@@ -487,7 +505,9 @@ pair<string, string> cgen_binary_exp(AST* root, unordered_map<string, ll_node*>&
         file<<result_register<<" = "<<temp_d.at(root_op)<<" "<<left_type<<" "<<left_reg<<", "<<right_reg<<"\n";
     }
     else if(root_op == "+" || root_op == "-" ||root_op == "*" || root_op == "/" || root_op == "%") {
-        unordered_map<string, string> temp_d = {{"+", "add"}, {"-","sub"}, {"*","mul"}, {"/","sdiv"},{"%","srem"}};
+        if(left_type == "float" || left_type == "double"){
+            unordered_map<string, string> temp_d = {{"+", "fadd"}, {"-","fsub"}, {"*","fmul"}, {"/","fdiv"},{"%","frem"}};
+        } else { unordered_map<string, string> temp_d = {{"+", "add"}, {"-","sub"}, {"*","mul"}, {"/","sdiv"},{"%","srem"}}; }
         file<<result_register<<" = "<<temp_d.at(root_op)<<" "<<left_type<<" "<<left_reg<<", "<<right_reg<<"\n";
     }
     // cout<<"exit "<<endl;
@@ -617,7 +637,10 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
             string type, reg;
             tie(type, reg) = cgen_expression(root->children[1], symtable, scope_level);
             string new_val = get_register();
-            file<<new_val<<" = sub "<<type<<" 0, "<<reg<<"\n";
+            if(type == "float" || type == "double"){
+                file<<new_val<<" = fsub "<<type<<" 0, "<<reg<<"\n";
+            }
+            else { file<<new_val<<" = sub "<<type<<" 0, "<<reg<<"\n"; }
             return make_pair(type, new_val);
         }
         else if (unary_op == "~" || unary_op == "!") {
@@ -681,12 +704,20 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         file<<reg<<" = fadd float 0.0, "<<value<<"\n";
         return make_pair("float", reg);
     }
-    // else if (root_op == "STRING_LITERAL"){
-    //     string str = root->value;
-    //     string s = '@'+string("str.")+to_string(register_counter);
-    //     register_counter++;
-    //     string_constants[s] = str;
-    // }
+    else if (root_op == "STRING_LITERAL"){
+        string str = root->value;
+        str.insert(str.size()-1,"\\0A\\00");
+        string s = '@'+string("str.")+to_string(register_counter);
+        register_counter++;
+        string_constants[s] = str;
+
+        int sz = str.size()+2-2;
+        string type = "[ "+to_string(sz)+" x i8 ]";
+
+        file<<"i8* getelementptr inbounds ("<<type<<", "<<type<<"* "<<s<<", i64 0, i64 0)";
+
+        return make_pair(type, s); // should never be used.
+    }
     // cout<<"cgen expr exit"<<endl;
 }
 
@@ -715,8 +746,6 @@ identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int 
             file<<allocate(x);
             file<<store(x, get_ll_name(x));
         }
-
-
         cgen(root->children[2], symtable, scope_level);
         
         if(type == "void"){

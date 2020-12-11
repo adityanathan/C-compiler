@@ -51,6 +51,10 @@ main(int argc, char **argv)
   // ss<<"declare "<<"void"<<" "<<"@empty"<<endl;
   // cout<<ss.str()<<endl;
 
+  // string str = "\"hello world\"";
+  // str.insert(str.size()-1,"\\0A\\00");
+  // cout<<str<<endl;
+
   if(ret==0){
     unordered_map<string, ll_node*> symbol_table;
     try {
@@ -86,6 +90,13 @@ main(int argc, char **argv)
     }
     
     // print string constants here
+    file<<endl;
+    for(auto x: string_constants){
+      string reg_name = x.first; string str = x.second;
+      int sz = str.size()+2-2;
+      string type = "[ "+to_string(sz)+" x i8 ]"
+      file<<reg_name<<" = "<<" private constant "<<type<<" c"<<str<<"\n";
+    }
 
     file.close();
   }
