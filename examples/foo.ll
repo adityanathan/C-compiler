@@ -8,10 +8,11 @@ define void @empty() {
     %e1 = load i32, i32* %ptr
     store i32 2, i32* %ptr
 
-    sdiv float 2, 3
+    ; sdiv float 2, 3
 
     ret void
     ret void
+    ret undef
 }
 
 define void @simple_arith() {

@@ -1,5 +1,0 @@
-digraph "CFG for 'empty' function" {
-	label="CFG for 'empty' function";
-
-	Node0xcb6c70 [shape=record,label="{entry}"];
-}

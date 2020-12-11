@@ -18,6 +18,9 @@ int fibonacci(int a, int b, int n)
 		a = t;
 		n = n-1;
 	}
+	float c = 0.5;
+	double d = 0.0;
+	return d;
 	return b;
 }
 

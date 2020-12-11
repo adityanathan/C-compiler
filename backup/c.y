@@ -119,7 +119,7 @@ unary_expression
 	: postfix_expression				
 	| INC_OP unary_expression			{ AST* inc = createAST(0, "INC_OP"); $$ = createAST(1, "unary_expression", {inc, $2}); }
 	| DEC_OP unary_expression			{ AST* dec = createAST(0, "DEC_OP"); $$ = createAST(1, "unary_expression", {dec, $2}); }
-	| unary_operator cast_expression	{ $$ = createAST(1, "unary expression", {$1, $2}); }
+	| unary_operator cast_expression	{ $$ = createAST(1, "unary_expression", {$1, $2}); }
 	| SIZEOF unary_expression			{ AST* sz = createAST(0, "SIZEOF"); $$ = createAST(1, "unary_expression", {sz, $2}); }
 	| SIZEOF '(' type_name ')'			{ AST* sz = createAST(0, "SIZEOF"); $$ = createAST(1, "unary_expression", {sz, $3}); }
 	| ALIGNOF '(' type_name ')'			{ AST* al = createAST(0, "ALIGNOF"); $$ = createAST(1, "unary_expression", {al, $3}); }

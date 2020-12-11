@@ -10,6 +10,8 @@ struct AST {
     string node_string;
     string value;
     vector<AST*> children;
+
+    bool jump_valid = false; // in case of break and continue determine during scope checking if they have an enveloping loop
 };
 
 struct identifier_node {
@@ -44,7 +46,9 @@ extern fstream file;
 
 extern int register_counter;
 extern int label_counter;
+extern int loop_label_counter;
 extern unordered_map<string, string> string_constants; // (register name, string constant)
+extern string func_ret_type; //stores return type of current function during codegen. (for return statements). WARNING: assuming nested function defns not allowed
 
 AST* createAST(int nodetype, string node_string);
 AST* createAST(int nodetype, string node_string, vector<AST*> c);

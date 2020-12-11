@@ -14,7 +14,9 @@ extern "C" FILE *yyin;
 fstream file;
 int register_counter = 0;
 int label_counter = 0;
+int loop_label_counter = 0;
 unordered_map<string, string> string_constants; // (register name, string constant)
+string func_ret_type;
 
 static void usage()
 {
@@ -51,7 +53,12 @@ main(int argc, char **argv)
 
   if(ret==0){
     unordered_map<string, ll_node*> symbol_table;
-    check_scope(ast_root, symbol_table, 0);
+    try {
+      check_scope(ast_root, symbol_table, 0);
+    } 
+    catch (string s){
+      cout << s << endl;
+    }
 
     // for(auto x: symbol_table){
     //   ll_node* list = x.second;
@@ -66,12 +73,18 @@ main(int argc, char **argv)
 
   ////////////////////////////////////////////////////
 
+    
   // Lab 2 Part 3 ////////////////////////////////////
   if(ret==0){
     file.open("a.ll", ios::trunc | ios::out | ios::in);
     // file << "hello world";
     unordered_map<string, ll_node*> symtable;
-    cgen(ast_root, symtable, 0);
+    try {
+      cgen(ast_root, symtable, 0);
+    } catch (string s){
+      cout << s << endl;
+    }
+    
     // print string constants here
 
     file.close();

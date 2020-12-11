@@ -4,6 +4,8 @@ void empty(char c){
     int d;
     d=4;
     if (d>5){
+        int *(*foo) = 5;
+        int (foo) = 'c';
         int f = 5;
         int d;
 
