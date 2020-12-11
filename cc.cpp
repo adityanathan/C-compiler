@@ -10,7 +10,11 @@ extern "C" int yylex();
 int yyparse();
 extern "C" FILE *yyin;
 
+
 fstream file;
+int register_counter = 0;
+int label_counter = 0;
+unordered_map<string, string> string_constants; // (register name, string constant)
 
 static void usage()
 {
@@ -41,6 +45,10 @@ main(int argc, char **argv)
 
   // cout<<string("Hello")+' '+string("World")<<endl;
 
+  // stringstream ss;
+  // ss<<"declare "<<"void"<<" "<<"@empty"<<endl;
+  // cout<<ss.str()<<endl;
+
   if(ret==0){
     unordered_map<string, ll_node*> symbol_table;
     check_scope(ast_root, symbol_table, 0);
@@ -59,12 +67,13 @@ main(int argc, char **argv)
   ////////////////////////////////////////////////////
 
   // Lab 2 Part 3 ////////////////////////////////////
-  // fstream file;
-
   if(ret==0){
     file.open("a.ll", ios::trunc | ios::out | ios::in);
-    file << "hello world";
-    // codegen();
+    // file << "hello world";
+    unordered_map<string, ll_node*> symtable;
+    cgen(ast_root, symtable, 0);
+    // print string constants here
+
     file.close();
   }
 

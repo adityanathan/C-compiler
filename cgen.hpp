@@ -26,40 +26,17 @@ struct identifier_node {
     vector<identifier_node*> func_args;
     bool variadic = false;
     /////////////////////////////////////
-
-    // Lab 2 Part 3 fields //////////////
-    string llvm_name;
-    /////////////////////////////////////
+    
 };
 
 struct ll_node {
     identifier_node* node;
     ll_node* next=nullptr;
-    int list_length = 0;
 };
-
-// Lab 2 Part 3 /////////////////////////////////////
 
 extern fstream file;
 
 extern int register_counter;
-extern int label_counter;
-extern unordered_map<string, string> string_constants; // (register name, string constant)
 
-AST* createAST(int nodetype, string node_string);
-AST* createAST(int nodetype, string node_string, vector<AST*> c);
-AST* createAST(int nodetype, string node_string, vector<AST*> c, char* val);
-
-void push(AST* node, vector<AST*> v);
-void insert(AST* node, vector<AST*> v);
-
-// void addchild(AST* child);
-void freeAST(AST* root);
-
-void printAST(AST* root);
-
-identifier_node* check_scope( AST* root, unordered_map<string, ll_node*>& symbol_table, int scope_level);
 
 identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int scope_level);
-
-extern AST* ast_root;
