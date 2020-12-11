@@ -5,6 +5,9 @@
 #include <sstream>
 using namespace std;
 
+#ifndef AST_HPP
+#define AST_HPP
+
 struct AST {
     int nodetype; //1 - Non Terminal (Has Children), 0 - Terminal, 3 - List, 4 - empty list (3,4 - list always expands to the left)
     string node_string;
@@ -13,6 +16,8 @@ struct AST {
 
     bool jump_valid = false; // in case of break and continue determine during scope checking if they have an enveloping loop
 };
+
+extern AST* ast_root;
 
 struct identifier_node {
     string symtype; //"func" or "var" or "label" or "func_sig"
@@ -67,4 +72,5 @@ identifier_node* check_scope( AST* root, unordered_map<string, ll_node*>& symbol
 
 identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int scope_level);
 
-extern AST* ast_root;
+
+#endif

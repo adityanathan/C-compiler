@@ -4,6 +4,7 @@
 #include "ast.hpp"
 #include "c.tab.hpp"
 #include <iostream>
+#include "optimize.hpp"
 
 
 extern "C" int yylex();
@@ -35,7 +36,7 @@ main(int argc, char **argv)
   assert(yyin);
   int ret = yyparse();
   // At this point ast_root gives me the AST.
-  if (ret==0) printAST(ast_root);
+  // if (ret==0) printAST(ast_root);
 
   // Lab 2 Part 2 /////////////////////////////////////
 
@@ -62,6 +63,7 @@ main(int argc, char **argv)
     } 
     catch (string s){
       cout << s << endl;
+      ret = 1;
     }
 
     // for(auto x: symbol_table){
@@ -77,6 +79,16 @@ main(int argc, char **argv)
 
   ////////////////////////////////////////////////////
 
+
+  // Lab 2 Part 4 ////////////////////////////////////
+  if(ret == 0){
+    // printAST(ast_root);
+    optimize(ast_root);
+    printAST(ast_root);
+  }
+
+  ////////////////////////////////////////////////////
+
     
   // Lab 2 Part 3 ////////////////////////////////////
   if(ret==0){
@@ -87,6 +99,7 @@ main(int argc, char **argv)
       cgen(ast_root, symtable, 0);
     } catch (string s){
       cout << s << endl;
+      ret = 1;
     }
     
     // print string constants here
@@ -101,6 +114,7 @@ main(int argc, char **argv)
   }
 
   ////////////////////////////////////////////////////
+
   printf("retv = %d\n", ret);
   exit(0);
 }

@@ -727,6 +727,13 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         file<<reg<<" = fadd float 0.0, "<<value<<"\n";
         return make_pair("float", reg);
     }
+    else if (root_op == "BOOL"){
+        string str = root->value;
+        string reg = get_register();
+        if (str == "TRUE") file<<reg<<" = and i1 true, true\n";
+        else file<<reg<<" = and i1 true, false\n";
+        return make_pair("i1", reg);
+    } 
     else if (root_op == "STR_LITERAL"){
         string str = root->value;
         int sz = str.size() - 2 + 1;
@@ -740,7 +747,7 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         file<<"i8* getelementptr inbounds ("<<type<<", "<<type<<"* "<<s<<", i64 0, i64 0)";
 
         return make_pair(type, s); // should never be used.
-    } 
+    }
     else if (root_op == "cast_expression"){
         string _type, _reg;
         tie(_type, _reg) = cgen_expression(root->children[1], symtable, scope_level); //if expr is a pointer - it will be reflected in _type.

@@ -1,6 +1,6 @@
 declare void @printf(i32* %format)
 
-define void @empty() {
+define i32 @empty() {
   entry:
     
 
@@ -10,9 +10,10 @@ define void @empty() {
 
     ; sdiv float 2, 3
 
-    ret void
-    ret void
-    ret undef
+    ; ret void
+    ; ret void
+    ret i32 undef
+    ret 
 }
 
 define void @simple_arith() {
