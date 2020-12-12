@@ -1,15 +1,27 @@
 declare i32 @printf(i8* %format.0, ...)
-define i32 @main(i32 %argc.0, i8** %argv.0) { 
+define void @empty(i32* %c.0) { 
 entry: 
-%argc.0.addr = alloca i32
-store i32 %argc.0, i32* %argc.0.addr
-%argv.0.addr = alloca i8**
-store i8** %argv.0, i8*** %argv.0.addr
-%e.0 = call i32 ( i8*, ... ) @printf(i8* getelementptr inbounds ([ 29 x i8 ], [ 29 x i8 ]* @str.1, i64 0, i64 0))
-%e.2 = add i32 0, 0
-ret i32 %e.2
+%c.0.addr = alloca i32*
+store i32* %c.0, i32** %c.0.addr
+%e.0 = and i1 true, true
+%e.1 = and i1 true, false
+%e.2 = and i1 true, true
+%e.3 = and i1 %e.1, %e.2
+%e.4 = or i1 %e.0, %e.3
+%e.5 = sext i1 %e.4 to i32
+%a.0.addr = alloca i32
+store i32 %e.5, i32* %a.0.addr
+%e.7 = load i32, i32* %a.0.addr
+%e.6 = call i32 ( i8*, ... ) @printf(i8* getelementptr inbounds ([ 3 x i8 ], [ 3 x i8 ]* @str.8, i64 0, i64 0), i32 %e.7)
+ret void
+}
+
+define i32 @main() { 
+entry: 
+%a.0.addr = alloca i32
+call void @empty( i32* %a.0.addr)
 ret i32 undef
 }
 
 
-@str.1 =  private constant [ 29 x i8 ] c"hello, aditya. hw are you?\n\00"
+@str.8 =  private constant [ 3 x i8 ] c"%d\00"

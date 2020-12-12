@@ -1,3 +1,5 @@
+int printf(char const *format, ...);
+
 int factorial(int n)
 {
 	if (n <= 0)
@@ -24,5 +26,8 @@ int fibonacci(int a, int b, int n)
 
 int main()
 {
-  return fibonacci(factorial(1), factorial(2), factorial(5));
+//   int a = fibonacci(factorial(1), factorial(2), factorial(5));
+	int a = fibonacci(0,1,5);
+  printf("%d", a);
+  return a;
 }

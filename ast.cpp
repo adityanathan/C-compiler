@@ -671,7 +671,10 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         }
         
         if(fn->variadic){
-            file<<result_reg<<" = "<<"call "<<fn->ll_type<<" (";
+            if(fn->type!="void"){
+                file<<result_reg<<" = ";
+            }
+            file<<"call "<<fn->ll_type<<" (";
             string sep = "";
             for(auto x: fn->func_args){
                 file<<sep<<" "<<x->ll_type;
@@ -680,7 +683,10 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
             file<<", ... ) @"<<fn->name<<"(";
         }
         else { 
-            file<<result_reg<<" = "<<"call "<<fn->ll_type<<" @"<<fn->name<<"(";
+            if(fn->type!="void"){
+                file<<result_reg<<" = ";
+            }
+            file<<"call "<<fn->ll_type<<" @"<<fn->name<<"(";
         }
         string separator = "";
         vector<AST*> _temp = root->children[1]->children;

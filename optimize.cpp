@@ -44,9 +44,7 @@ val* evaluate(AST* root) {
             reduce = reduce && temp->valid;
         }
         if(reduce){
-            // root->children = {create_from_val(temp)};
-            root = create_from_val(temp);
-            // create_from_val(temp); //noop;
+            *root = *(create_from_val(temp));
         }
         return temp;
     }
@@ -54,7 +52,7 @@ val* evaluate(AST* root) {
         val* res = evaluate(root->children[1]);
         if(res->valid){
             AST* newnode = create_from_val(res);
-            root->children[1] = createAST(root->nodetype, root->node_string, {root->children[0], newnode});
+            *(root->children[1]) = *(createAST(root->nodetype, root->node_string, {root->children[0], newnode}));
         }
         return create_dummy();
     }
@@ -63,11 +61,11 @@ val* evaluate(AST* root) {
         if(cond->valid) {
             if(cond->bval){
                 val* btrue = evaluate(root->children[1]);
-                if(btrue->valid) root = create_from_val(btrue);
+                if(btrue->valid) *root = *create_from_val(btrue);
                 return btrue;
             } else {
                 val* bfalse = evaluate(root->children[2]);
-                if(bfalse->valid) root = create_from_val(bfalse);
+                if(bfalse->valid) *root = *create_from_val(bfalse);
                 return bfalse;
             }
         }
@@ -147,28 +145,30 @@ val* evaluate(AST* root) {
             }
             else return create_dummy();
             // cout<<"a1"<<endl;
-            root = create_from_val(res);
+            *root = *create_from_val(res);
             return res;
         }
+        return create_dummy();
     } 
     else if (root_op == "unary_expression"){
         string unary_op = root->children[0]->node_string;
         val* right = evaluate(root->children[1]);
         if(right->valid){
             if (unary_op == "+"){
-                root = create_from_val(right);
+                *root = *create_from_val(right);
             }
             else if (unary_op == "-"){
                 if(right->type == INTV) right->ival = -right->ival;
                 else if (right->type == FLOATV) right->fval = -right->fval;
                 else return create_dummy();
-                root = create_from_val(right);
+                *root = *create_from_val(right);
             }
             else if (unary_op == "~") {
                 if(right->type == INTV) right->ival = ~right->ival;
-                root = create_from_val(right);
+                *root = *create_from_val(right);
             }
             else return create_dummy();
+            
             return right;
         }
         else return create_dummy();
@@ -189,7 +189,12 @@ val* evaluate(AST* root) {
         temp->fval = stof(root->value);
         return temp;
     }
-    return create_dummy();
+    else {
+        for(auto x: root->children){
+            evaluate(x);
+        }
+        return create_dummy();
+    }
 }
 
 void constant_folding(AST* root){
@@ -203,10 +208,49 @@ void constant_folding(AST* root){
     }
 }
 
-// void dead_code_removal(AST* root){
-
-// }
+void dead_code_removal(AST* root){
+    if(root->node_string == "ifte"){
+        AST* cond = root->children[0]->children[0];
+        // cout<<"Before: "<<root->node_string<<endl;
+        if(cond->node_string == "BOOL"){
+            if(cond->value=="TRUE"){
+                // cout<<"A1"<<endl;
+                *root = *root->children[1];
+                // cout<<"B1"<<endl;
+            }
+            else {
+                cout<<root->children.size()<<endl;
+                if(root->children.size()>2){
+                    // cout<<"A2"<<endl;
+                    *root = *root->children[2];
+                    // cout<<"B2"<<endl;
+                }
+                else {
+                    // cout<<"A3"<<endl;
+                    *root = *createAST(0, "NO_OP", {});
+                    // cout<<"B3"<<endl;
+                }
+            }
+        }
+        // cout<<"After: "<<root->node_string<<endl;
+    }
+    else if (root->node_string == "while"){
+        AST* cond = root->children[0]->children[0];
+        if(cond->node_string == "BOOL"){
+            if(cond->value=="FALSE"){
+                *root = *(createAST(0, "NO_OP", {}));
+            }
+        }
+    }
+    else {
+        for(auto x: root->children){
+            dead_code_removal(x);
+        }
+    }
+    return;
+}
 
 void optimize(AST* root) {
     constant_folding(root);
+    dead_code_removal(root);
 }

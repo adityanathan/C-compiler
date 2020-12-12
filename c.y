@@ -44,7 +44,8 @@ AST* ast_root;
 %type <a> argument_expression_list unary_expression unary_operator multiplicative_expression
 %type <a> additive_expression shift_expression relational_expression equality_expression and_expression
 %type <a> exclusive_or_expression inclusive_or_expression logical_and_expression logical_or_expression
-%type <a> conditional_expression assignment_expression expression cast_expression type_name
+%type <a> conditional_expression assignment_expression expression 
+%type <a> cast_expression type_name
 %type <a> declaration declaration_specifiers init_declarator_list init_declarator type_specifier type_qualifier
 %type <a> declarator direct_declarator pointer type_qualifier_list parameter_type_list parameter_list
 %type <a> parameter_declaration statement
@@ -85,7 +86,7 @@ unary_expression
 	: postfix_expression				
 	| INC_OP unary_expression			{ AST* inc = createAST(0, "INC_OP"); $$ = createAST(1, "unary_expression", {inc, $2}); }
 	| DEC_OP unary_expression			{ AST* dec = createAST(0, "DEC_OP"); $$ = createAST(1, "unary_expression", {dec, $2}); }
-	| unary_operator cast_expression	{ $$ = createAST(1, "unary_expression", {$1, $2}); }
+	| unary_operator unary_expression	{ $$ = createAST(1, "unary_expression", {$1, $2}); }
 	;
 	
 unary_operator
@@ -97,21 +98,11 @@ unary_operator
 	| '!'	{$$ = createAST(0, "!");}
 	;
 
-cast_expression
-	: unary_expression						
-	| '(' type_name ')' cast_expression		{ $$ = createAST(1, "cast_expression", {$2, $4}); }
-	;
-
-type_name
-	: declaration_specifiers pointer					{ $$ = createAST(1, "type_name", {$1, $2}); }
-	| declaration_specifiers							{ $$ = createAST(1, "type_name", {$1}); }
-	;
-
 multiplicative_expression
-	: cast_expression
-	| multiplicative_expression '*' cast_expression		{ $$ = createAST(1, "*", {$1, $3}); }
-	| multiplicative_expression '/' cast_expression		{ $$ = createAST(1, "/", {$1, $3}); }
-	| multiplicative_expression '%' cast_expression		{ $$ = createAST(1, "%", {$1, $3}); }
+	: unary_expression
+	| multiplicative_expression '*' unary_expression		{ $$ = createAST(1, "*", {$1, $3}); }
+	| multiplicative_expression '/' unary_expression		{ $$ = createAST(1, "/", {$1, $3}); }
+	| multiplicative_expression '%' unary_expression		{ $$ = createAST(1, "%", {$1, $3}); }
 	;
 
 additive_expression
@@ -170,8 +161,19 @@ conditional_expression
 	| logical_or_expression '?' expression ':' conditional_expression			{ $$ = createAST(1, "?:", {$1, $3, $5}); }
 	;
 
+cast_expression
+	: conditional_expression						
+	| '(' type_name ')' cast_expression		{ $$ = createAST(1, "cast_expression", {$2, $4}); }
+	;
+
+type_name
+	: declaration_specifiers pointer					{ $$ = createAST(1, "type_name", {$1, $2}); }
+	| declaration_specifiers							{ $$ = createAST(1, "type_name", {$1}); }
+	;
+
 assignment_expression
-	: conditional_expression
+	// : conditional_expression
+	: cast_expression
 	| unary_expression '=' assignment_expression 		{ $$ = createAST(1, "assignment", {$1, $3}); }
 	;
 

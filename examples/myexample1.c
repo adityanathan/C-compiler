@@ -1,22 +1,22 @@
-void empty(char c){
-    hello: c++; d++;
+int printf(char const *format, ...);
 
-    int d;
-    d=4;
-    if (d>5){
-        int *(*foo) = 5;
-        int (foo) = 'c';
-        int f = 5;
-        int d;
+void empty(int* c){
+    if(5>3){
+        int a = (int) (5 > 5/2) || (5 >= 100) && (5 < 99);
+        printf("%d", a);
+    }
 
-    } else {
-        f++;
+    if(4<3){
+        int a = (int) (5 > 5/2) || (5 >= 100) && (5 < 99);
+        printf("%d", a);
     }
-    f+1;
-    while(d){
-        int g;
-        f++;
+
+    while(4<3){
+        printf("%d", (5 > 5/2) || (5 >= 100) && (5 < 99));
     }
-    g;
-    goto hello;
+}
+
+int main(){
+    int a;
+    empty(&a);
 }
