@@ -188,7 +188,7 @@ declaration
 	;
 
 declaration_specifiers							
-	: declaration_specifiers type_specifier				{ push($1, {$2});  $$ = $1; }
+	: declaration_specifiers type_specifier				{ if($1->node_string=="CONST") {$$ = createAST(3, "type", {$2});} else {push($1, {$2});  $$ = $1;} }
 	| type_specifier									{ $$ = createAST(3, "type", {$1}); }
 	| declaration_specifiers type_qualifier				{ $$ = $1; }
 	| type_qualifier
@@ -322,7 +322,7 @@ translation_unit
 
 external_declaration
 	: function_definition
-	| declaration								{ $$ = createAST(1, "GLOBAL", {$1}); }
+	| declaration								{ $$ = createAST(1, "global", {$1}); }
 	;
 
 function_definition

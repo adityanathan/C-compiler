@@ -2,6 +2,244 @@
 
 using namespace std;
 
+unordered_map<string, sll_node*> sym_table;
+
+void var_substitution(AST* root, int scope_level);
+
+void constant_folding(AST* root);
+
+void dead_code_removal(AST* root);
+
+void prune_tree(AST* root);
+
+void optimize(AST* root) {
+    prune_tree(root);
+    // var_substitution(root, 0);
+    constant_folding(root);
+    dead_code_removal(root);
+}
+
+// Prune Tree /////////////////////////////////////////////////////
+
+void alter_postfix(AST* root) {
+    if(root->node_string=="postfix_expression"){
+        AST* runner = root;
+        while(runner->node_string!="expression") runner = runner->parent;
+        
+        AST* temp = createAST(1, "unary_expression", {root->children[1], root->children[0]});
+        runner->postfix_cgen.push_back(temp);
+    }
+}
+
+void prune_tree(AST* root) {
+    alter_postfix(root);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+///// optimizations /////////////////////////////////////////////////////////////////////////////////////
+
+////////////// variable substitution ////////////////////////////////////////////////////////////////////
+
+sll_node* createNode(sym_node* node){
+    sll_node* newnode = new sll_node;
+    newnode->node = node;
+    return newnode;
+}
+
+void sym_insert(sym_node* node){
+    sll_node* newnode = createNode(node);
+    newnode->next = sym_table[node->name];
+    sym_table[node->name] = newnode;
+    return;
+}
+
+void add_to_symtable(sym_node* node){
+    cout<<"adding "<<node->name<<endl;
+    if(sym_table.find(node->name)==sym_table.end())
+        sym_table.insert(make_pair(node->name, createNode(node)));
+    else if (sym_table[node->name] == nullptr)
+        sym_insert(node);
+    else if (sym_table[node->name]->node->scope_level != node->scope_level)
+        sym_insert(node);
+    return;
+}
+
+void scope_exit(int level_to_be_removed) {
+    cout<<" removing level "<<level_to_be_removed<<endl;
+    for (auto x: sym_table) {
+        if(x.second != nullptr){
+            sll_node* temp = x.second;
+            if(temp->node->scope_level == level_to_be_removed) {
+                cout<<"removing "<<x.first<<endl;
+                sym_table[x.first] = temp->next;
+            }
+        }
+    }
+}
+
+sym_node* create_dummy_sym(string name, int scope_level) {
+    sym_node* node = new sym_node;
+    node->name = name;
+    node->scope_level = scope_level;
+    return node;
+}
+
+void assign_val (sym_node* node, val* value){
+    node->valid = value->valid;
+    node->type = value->type;
+    node->ival = value->ival;
+    node->fval = value->fval;
+    node->bval = value->bval;
+}
+
+bool verify_key(string key){
+    if(sym_table.find(key) == sym_table.end() || sym_table[key]==nullptr ) return false;
+    return true;
+}
+
+val* evaluate(AST* root);
+
+bool replace_var_node(AST* root){
+    if (root->node_string == "ID"){
+        if(verify_key(root->value)){
+            sym_node* node = sym_table[root->value]->node;
+
+            cout<<"trying to replace "<<root->value<<endl;
+            if(node->valid){
+                AST* temp = new AST;
+                if(node->type == INTV){
+                    temp = createAST(0, "I_CONSTANT", {});
+                    temp->value = to_string(node->ival);
+                } else if (node->type == FLOATV) {
+                    temp = createAST(0, "F_CONSTANT", {});
+                    temp->value = to_string(node->fval);
+                } else {
+                    temp = createAST(0, "BOOL", {});
+                    if(node->bval) temp->value = "TRUE";
+                    else temp->value = "FALSE";
+                }
+                *root = *temp;
+                return true;
+            } else {
+                return false;
+            }
+        }
+        else {
+            return false;
+        }
+    }
+    else {
+        bool temp = true;
+        for (auto x: root->children) {
+            bool _t = replace_var_node(x);
+            temp = _t && temp;
+
+        }
+        return temp;
+    }
+}
+
+string find_var_name(AST* root){
+    if(root->node_string == "ID") return root->value;
+    else {
+        for(auto x: root->children) {
+            string temp = find_var_name(x);
+            if(temp != "") return temp;
+        }
+    }
+    return "";
+}
+
+void var_substitution(AST* root, int scope_level){
+    // the two places where expressions start off is with an expression node or the rval of assignment (no expression node)
+    // objective = replace all the variables that you can possibly replace
+    // cout<<"enter"<<endl;
+    if (root->node_string == "declaration") {
+        cout<<"a"<<endl;
+        AST* init_declarator = root->children[1];
+
+        for(auto x: init_declarator->children) {
+            sym_node* newnode;
+
+            if(x->node_string=="="){
+                AST* declarator = x->children[0];
+                AST* expr = x->children[1];
+                int pointer_level = declarator->children[0]->children.size();
+                if(declarator->children[1]->node_string=="ID" && pointer_level == 0){
+                    newnode = new sym_node;
+                    newnode->scope_level = scope_level;
+                    newnode->name=declarator->children[1]->value;
+                    if(replace_var_node(expr)){
+                        assign_val(newnode, evaluate(expr));
+                    }
+                    else{
+                        newnode->valid = false;
+                    }
+                    add_to_symtable(newnode);
+                }
+            }
+            else {
+                if(x->children[1]->node_string=="ID"){
+                    AST* declarator = x;
+                    newnode = new sym_node;
+                    newnode->scope_level = scope_level;
+                    newnode->name=declarator->children[1]->value;
+                    newnode->valid = false;
+                    add_to_symtable(newnode);
+                }
+            } 
+        }
+    }
+    else if (root->node_string == "assignment") {
+        cout<<"b"<<endl;
+        AST* lval = root->children[0];
+        AST* rval = root->children[1];
+        if(replace_var_node(rval) && lval->node_string == "ID" && verify_key(lval->value)) {
+            assign_val(sym_table[lval->value]->node, evaluate(rval));
+        }
+        else {
+            string name = find_var_name(lval);
+            if(verify_key(lval->value)){
+                sym_table[name]->node->valid = false;
+            }
+        }
+    }
+    else if (root->node_string == "expression") {
+        cout<<"c"<<endl;
+        replace_var_node(root);
+    }
+    // scope increments
+    else if (root->node_string=="FUNC"){
+        cout<<"d"<<endl;
+        AST* param_list = root->children[1]->children[1]->children[1];
+        for(auto x: param_list->children){
+            sym_node* newnode = new sym_node;
+            newnode->valid = false;
+            newnode->name = x->children[1]->children[1]->value;
+            newnode->scope_level = scope_level+1;
+            add_to_symtable(newnode);
+        }
+        var_substitution(root->children[2], scope_level);
+    }
+    else if (root->node_string=="compound_statement") {
+        cout<<"e"<<endl;
+        for(auto x: root->children) {
+            var_substitution(x, scope_level+1);
+        }
+        scope_exit(scope_level+1);
+    }
+    else {
+        cout<<"f"<<endl;
+        for(auto x: root->children){
+            var_substitution(x, scope_level);
+        }
+    }
+    // cout<<"exit"<<endl;
+}
+
+//////////////////// constant folding ///////////////////////////////////////////////////////////
+
 AST* create_from_val(val* node){
     // cout<<"enter"<<endl;
     if(node->valid){
@@ -47,6 +285,14 @@ val* evaluate(AST* root) {
             *root = *(create_from_val(temp));
         }
         return temp;
+    }
+    else if (root_op == "cast_expression"){
+        // cout<<"a"<<endl;
+        val* temp = evaluate(root->children[1]);
+        if(temp->valid){
+            *(root->children[1]) = *create_from_val(temp);
+        }
+        return create_dummy();
     }
     else if (root_op=="assignment"){
         val* res = evaluate(root->children[1]);
@@ -95,22 +341,46 @@ val* evaluate(AST* root) {
                 res->type = INTV; res->ival = left->ival & right->ival;
             }
             else if (root_op=="EQ_OP") {
-                res->type = BOOLV; res->bval = left->ival == right->ival;
+                res->type = BOOLV; 
+                // res->bval = left->ival == right->ival;
+                if (left->type == INTV ) { res->bval = left->ival == right->ival;}
+                else if (left->type == FLOATV ) { res->bval = left->fval == right->fval;}
+                else return create_dummy();
             }
             else if (root_op=="NE_OP") {
-                res->type = BOOLV; res->bval = left->ival != right->ival;
+                res->type = BOOLV; 
+                // res->bval = left->ival != right->ival;
+                if (left->type == INTV ) { res->bval = left->ival != right->ival;}
+                else if (left->type == FLOATV ) { res->bval = left->fval != right->fval;}
+                else return create_dummy();
             }
             else if (root_op=="GE_OP") {
-                res->type = BOOLV; res->bval = left->ival >= right->ival;
+                res->type = BOOLV; 
+                // res->bval = left->ival >= right->ival;
+                if (left->type == INTV ) { res->bval = left->ival >= right->ival;}
+                else if (left->type == FLOATV ) { res->bval = left->fval >= right->fval;}
+                else return create_dummy();
             }
             else if (root_op=="LE_OP") {
-                res->type = BOOLV; res->bval = left->ival <= right->ival;
+                res->type = BOOLV; 
+                // res->bval = left->ival <= right->ival;
+                if (left->type == INTV ) { res->bval = left->ival <= right->ival;}
+                else if (left->type == FLOATV ) { res->bval = left->fval <= right->fval;}
+                else return create_dummy();
             }
             else if (root_op==">") {
-                res->type = BOOLV; res->bval = left->ival > right->ival;
+                res->type = BOOLV; 
+                // res->bval = left->ival > right->ival;
+                if (left->type == INTV ) { res->bval = left->ival > right->ival;}
+                else if (left->type == FLOATV ) { res->bval = left->fval > right->fval;}
+                else return create_dummy();
             }
             else if (root_op=="<") {
-                res->type = BOOLV; res->bval = left->ival < right->ival;
+                res->type = BOOLV; 
+                // res->bval = left->ival < right->ival;
+                if (left->type == INTV ) { res->bval = left->ival < right->ival;}
+                else if (left->type == FLOATV ) { res->bval = left->fval < right->fval;}
+                else return create_dummy();
             }
             else if (root_op=="LEFT_OP") {
                 res->type = INTV; res->ival = left->ival << right->ival;
@@ -144,7 +414,6 @@ val* evaluate(AST* root) {
                 else return create_dummy();
             }
             else return create_dummy();
-            // cout<<"a1"<<endl;
             *root = *create_from_val(res);
             return res;
         }
@@ -198,10 +467,17 @@ val* evaluate(AST* root) {
 }
 
 void constant_folding(AST* root){
+    // the two places where expressions start off is with an expression node or the rval of assignment (no expression node)
     if(root->node_string == "expression"){
-        val* temp = evaluate(root);
-        if (temp->valid) root->children = {create_from_val(temp)};
-    } else {
+        for(auto x: root->children) {
+            evaluate(x);
+        }
+    }
+    else if(root->node_string == "="){
+        val* temp = evaluate(root->children[1]);
+        if (temp->valid) root->children[1] = {create_from_val(temp)};
+    }
+    else {
         for(auto x: root->children){
             constant_folding(x);
         }
@@ -219,7 +495,7 @@ void dead_code_removal(AST* root){
                 // cout<<"B1"<<endl;
             }
             else {
-                cout<<root->children.size()<<endl;
+                // cout<<root->children.size()<<endl;
                 if(root->children.size()>2){
                     // cout<<"A2"<<endl;
                     *root = *root->children[2];
@@ -248,9 +524,4 @@ void dead_code_removal(AST* root){
         }
     }
     return;
-}
-
-void optimize(AST* root) {
-    constant_folding(root);
-    dead_code_removal(root);
 }

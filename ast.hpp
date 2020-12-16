@@ -13,6 +13,9 @@ struct AST {
     string node_string;
     string value;
     vector<AST*> children;
+    AST* parent = nullptr;
+
+    vector<AST*> postfix_cgen; // used only when some special code is needed for postfix increment or decrement.
 
     bool jump_valid = false; // in case of break and continue determine during scope checking if they have an enveloping loop
 };
@@ -28,6 +31,7 @@ struct identifier_node {
     string type;
     string ll_type;
     int pointer_level; //number of stars
+    bool global_var;
     /////////////////////////////////
 
     // for funcs only ////////////////////

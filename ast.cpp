@@ -14,6 +14,7 @@ AST* createAST(int nodetype, string node_string, vector<AST*> c){
     newast->node_string = node_string;
     for(auto x: c){
         newast->children.push_back(x);
+        x->parent = newast;
     }
     return newast;
 }
@@ -24,6 +25,7 @@ AST* createAST(int nodetype, string node_string, vector<AST*> c, char* val){
     newast->node_string = node_string;
     for(auto x: c){
         newast->children.push_back(x);
+        x->parent = newast;
     }
     string v(val);
     newast->value = v;
@@ -33,12 +35,14 @@ AST* createAST(int nodetype, string node_string, vector<AST*> c, char* val){
 void push(AST* node, vector<AST*> v){
     for(auto x: v){
         node->children.push_back(x);
+        x->parent = node;
     }
 }
 
 void insert(AST* node, vector<AST*> v){
     for(auto it = v.rbegin(); it!=v.rend(); it++){
         node->children.insert(node->children.begin(), *it);
+        (*it)->parent = node;
     }
 }
 
@@ -57,8 +61,14 @@ void printAST_helper(AST* root, int height){
         cout<<"|-  ";
 
         if(root->nodetype==0 && !root->value.empty()){
+            // if(root->parent)
+            // cout<<root->node_string<<"( "<<root->value<<" )"<<" ( "<<root->parent->node_string<<" )"<<endl;
+            // else
             cout<<root->node_string<<"( "<<root->value<<" )"<<endl;
         } else {
+            // if(root->parent)
+            // cout<<root->node_string<<" ( "<<root->parent->node_string<<" )"<<endl;
+            // else
             cout<<root->node_string<<endl;
         }
     // }
@@ -390,7 +400,10 @@ identifier_node* get_sym(AST* node, unordered_map<string, ll_node*>& symtable){
 }
 
 string get_ll_ptr(identifier_node* node){
-    return '\%'+(node->llvm_name)+'.'+string("addr");
+    if(node->global_var)
+        return '@'+(node->llvm_name)+'.'+string("addr");
+    else
+        return '\%'+(node->llvm_name)+'.'+string("addr");
 }
 
 string get_ll_name(identifier_node* node){
@@ -533,6 +546,9 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         pair<string, string> temp;
         for(auto x: root->children){
             temp = cgen_expression(x, symtable, scope_level);
+        }
+        for(auto x: root->postfix_cgen){
+            cgen_expression(x, symtable, scope_level);
         }
         return temp;
     }
@@ -706,20 +722,21 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         return make_pair(fn->ll_type, result_reg);
     }
     else if (root_op == "postfix_expression"){
-        // This is wrong. This does normal prefix
-        string op = root->children[1]->node_string;
-        unordered_map<string, string> temp_d = {{"INC_OP", "add"}, {"DEC_OP","sub"}};
-        string type, result;
-        if(root->children[0]->node_string != "ID") throw string("Error: increment and decrement operators can only be applied to identifiers\n");
-        identifier_node* id = get_sym(root->children[0], symtable);
-        pair<string,string> temp = load(id);
-        file<<temp.second;
+        // // This is wrong. This does normal prefix
+        // string op = root->children[1]->node_string;
+        // unordered_map<string, string> temp_d = {{"INC_OP", "add"}, {"DEC_OP","sub"}};
+        // string type, result;
+        // if(root->children[0]->node_string != "ID") throw string("Error: increment and decrement operators can only be applied to identifiers\n");
+        // identifier_node* id = get_sym(root->children[0], symtable);
+        // pair<string,string> temp = load(id);
+        // file<<temp.second;
 
-        string old_val = temp.first;
-        string new_val = get_register();
-        file<<new_val<<" = "<<temp_d[op]<<" "<<id->ll_type<<" "<<old_val<<", "<<"1"<<"\n";
-        file<<store(id, new_val);
-        return make_pair(id->ll_type, new_val);
+        // string old_val = temp.first;
+        // string new_val = get_register();
+        // file<<new_val<<" = "<<temp_d[op]<<" "<<id->ll_type<<" "<<old_val<<", "<<"1"<<"\n";
+        // file<<store(id, new_val);
+        // return make_pair(id->ll_type, new_val);
+        throw string("Postfix expression supposed to be converted to prefix by optimizer");
     }
     else if (root_op == "I_CONSTANT"){
         string value = root->value;
@@ -734,6 +751,7 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         return make_pair("float", reg);
     }
     else if (root_op == "BOOL"){
+        // added by optimizer
         string str = root->value;
         string reg = get_register();
         if (str == "TRUE") file<<reg<<" = and i1 true, true\n";
@@ -769,6 +787,89 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         
     }
     // cout<<"cgen expr exit"<<endl;
+}
+
+void cgen_declaration(AST* root, unordered_map<string, ll_node*>& symtable, int scope_level) {
+    // cout<<"a"<<endl;
+    string type = get_type(root->children[0]);
+    AST* init_declarator = root->children[1];
+    bool is_global = (root->parent->node_string == "global");
+    for(auto x: init_declarator->children) {
+        identifier_node* newnode;
+        
+        if(x->node_string=="="){
+
+            newnode = cgen_declarator_node(x->children[0], type, symtable, scope_level); // returns the LHS variable - definitely a var
+            newnode->global_var = is_global;
+
+            add_to_symtable(symtable, newnode); // needs to be added before so that llvm_name is properly defined for alloca and store
+
+            if(!is_global){
+                string rval_type, rval_reg;
+                tie(rval_type, rval_reg) = cgen_expression(x->children[1], symtable, scope_level); // rval is an assignment_expression
+                file<<allocate(newnode);
+                file<<store(newnode, rval_reg);
+            } else {
+                // global initializations always have constant rvals
+                AST* rval = x->children[1];
+
+                if(rval->node_string == "I_CONSTANT" || rval->node_string == "F_CONSTANT"){
+                    string value = rval->value;
+                    file<<get_ll_ptr(newnode)<<" = global "<<newnode->ll_type<<" "<<value<<"\n";
+                }
+                else { // This block is executed if rval not a constant. Backup option. Not supposed to be executed because of optimization.
+                    file<<get_ll_ptr(newnode)<<" = global "<<newnode->ll_type;
+                    if(newnode->pointer_level==0){
+                        if(newnode->type == "float" || newnode->type == "double")
+                            file<<" 0.0\n";
+                        else file<<" 0\n";
+                    } 
+                    else file<<"null\n";
+
+                    file<<"define void @compute."<<newnode->llvm_name<<"() {\n";
+                    string rval_type, rval_reg;
+                    tie(rval_type, rval_reg) = cgen_expression(x->children[1], symtable, scope_level);
+                    file<<store(newnode, rval_reg);
+                    file<<"ret void\n";
+                    file<<"}\n\n";
+                }
+                // else throw string("global variable "+newnode->name+" must have a constant rvalue");
+            }
+        }
+        else{
+            newnode = cgen_declarator_node(x, type, symtable, scope_level);
+            newnode->global_var = is_global;
+            add_to_symtable(symtable, newnode); // needs to be added before so that llvm_name is properly defined for alloca and store
+            if(newnode->symtype == "func"){
+                scope_exit(symtable, scope_level+1); // To remove the function args from scope. Since it has no compound statement
+                
+                stringstream ss;
+                ss<<"declare "<<newnode->ll_type<<" @"<<newnode->name<<"(";
+                string separator = "";
+                for(auto x: newnode->func_args){
+                    ss<<separator<<x->ll_type<<" "<<get_ll_name(x);
+                    separator = ", ";
+                }
+                if(newnode->variadic) ss<<", ...";
+                ss<<")\n"; 
+                file<<ss.str();
+            } 
+            else if (newnode->symtype == "var") {
+                if(is_global){
+                    file<<get_ll_ptr(newnode)<<" = global "<<newnode->ll_type;
+                    if(newnode->pointer_level==0){
+                        if(newnode->type == "float" || newnode->type == "double")
+                            file<<" 0.0\n";
+                        else file<<" 0\n";
+                    } 
+                    else file<<"null\n";
+                }
+                else {
+                    file<<allocate(newnode);
+                }
+            }
+        } 
+    }
 }
 
 identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int scope_level) {
@@ -821,45 +922,7 @@ identifier_node* cgen(AST* root, unordered_map<string, ll_node*>& symtable, int 
     }
     else if (root->node_string == "declaration"){
         // cout<<"c"<<endl;
-        string type = get_type(root->children[0]);
-        AST* init_declarator = root->children[1];
-        for(auto x: init_declarator->children) {
-            identifier_node* newnode;
-            if(x->node_string=="="){
-                string rval_type, rval_reg;
-                tie(rval_type, rval_reg) = cgen_expression(x->children[1], symtable, scope_level); // rval is an assignment_expression
-                newnode = cgen_declarator_node(x->children[0], type, symtable, scope_level); // returns the LHS variable - definitely a var
-                add_to_symtable(symtable, newnode); // needs to be added before so that llvm_name is properly defined for alloca and store
-                // if(newnode->type != rval_type){
-                //     string _t3 = bitcast({rval_type, rval_reg}, newnode->type);
-                //     rval_reg = _t3;
-                //     rval_type = newnode->type;
-                // }
-                file<<allocate(newnode);
-                file<<store(newnode, rval_reg);
-            }
-            else{
-                newnode = cgen_declarator_node(x, type, symtable, scope_level);
-                add_to_symtable(symtable, newnode); // needs to be added before so that llvm_name is properly defined for alloca and store
-                if(newnode->symtype == "func"){
-                    scope_exit(symtable, scope_level+1); // To remove the function args from scope. Since it has no compound statement
-                    
-                    stringstream ss;
-                    ss<<"declare "<<newnode->ll_type<<" @"<<newnode->name<<"(";
-                    string separator = "";
-                    for(auto x: newnode->func_args){
-                        ss<<separator<<x->ll_type<<" "<<get_ll_name(x);
-                        separator = ", ";
-                    }
-                    if(newnode->variadic) ss<<", ...";
-                    ss<<")\n"; 
-                    file<<ss.str();
-                } 
-                else if (newnode->symtype == "var") {
-                    file<<allocate(newnode);
-                }
-            } 
-        }
+        cgen_declaration(root, symtable, scope_level);
     }
     else if (root->node_string=="labeled_statement") {
         // cout<<"d"<<endl;
