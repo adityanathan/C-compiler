@@ -322,6 +322,34 @@ identifier_node* check_scope(AST* root, unordered_map<string, ll_node*>& symbol_
 
 /////////////////////////////// Lab 2 Part 3 /////////////////////////////////////////////////////////////////////////////////
 
+void str_replace(string& a, string f, string r) {
+    // f - find, r - replace
+    size_t index = 0;
+    while (true) {
+        /* Locate the substring to replace. */
+        index = a.find(f, index);
+        if (index == std::string::npos) break;
+
+        /* Make the replacement. */
+        a.replace(index, f.size(), r);
+
+        /* Advance index forward so the next iteration doesn't pick it up as well. */
+        index += f.size();
+    }
+}
+
+void handle_escape(string& a){
+    str_replace(a, "\\n", "\\0A");
+    str_replace(a, "\\a", "\\07");
+    str_replace(a, "\\b", "\\08");
+    str_replace(a, "\\f", "\\0C");
+    str_replace(a, "\\r", "\\0D");
+    str_replace(a, "\\t", "\\09");
+    str_replace(a, "\\v", "\\0B");
+    str_replace(a, "\\\\", "\\5C");
+    str_replace(a, "\\\?", "\\3F");
+}
+
 string print_type(string type, int pointer_level){
     stringstream ss;
     ss<<type;
@@ -760,7 +788,10 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
     } 
     else if (root_op == "STR_LITERAL"){
         string str = root->value;
-        int sz = str.size() - 2 + 1;
+        string temp = str;
+        str_replace(temp, "\\", "");
+        int sz = temp.size() - 2 + 1;
+        handle_escape(str);
         str.insert(str.size()-1,"\\00");
         string s = '@'+string("str.")+to_string(register_counter);
         register_counter++;
@@ -812,28 +843,20 @@ void cgen_declaration(AST* root, unordered_map<string, ll_node*>& symtable, int 
             } else {
                 // global initializations always have constant rvals
                 AST* rval = x->children[1];
+                file<<get_ll_ptr(newnode)<<" = global "<<newnode->ll_type;
+                if(newnode->pointer_level==0){
+                    if(newnode->type == "float" || newnode->type == "double")
+                        file<<" 0.0\n";
+                    else file<<" 0\n";
+                } 
+                else file<<"null\n";
 
-                if(rval->node_string == "I_CONSTANT" || rval->node_string == "F_CONSTANT"){
-                    string value = rval->value;
-                    file<<get_ll_ptr(newnode)<<" = global "<<newnode->ll_type<<" "<<value<<"\n";
-                }
-                else { // This block is executed if rval not a constant. Backup option. Not supposed to be executed because of optimization.
-                    file<<get_ll_ptr(newnode)<<" = global "<<newnode->ll_type;
-                    if(newnode->pointer_level==0){
-                        if(newnode->type == "float" || newnode->type == "double")
-                            file<<" 0.0\n";
-                        else file<<" 0\n";
-                    } 
-                    else file<<"null\n";
-
-                    file<<"define void @compute."<<newnode->llvm_name<<"() {\n";
-                    string rval_type, rval_reg;
-                    tie(rval_type, rval_reg) = cgen_expression(x->children[1], symtable, scope_level);
-                    file<<store(newnode, rval_reg);
-                    file<<"ret void\n";
-                    file<<"}\n\n";
-                }
-                // else throw string("global variable "+newnode->name+" must have a constant rvalue");
+                file<<"define void @compute."<<newnode->llvm_name<<"() {\n";
+                string rval_type, rval_reg;
+                tie(rval_type, rval_reg) = cgen_expression(x->children[1], symtable, scope_level);
+                file<<store(newnode, rval_reg);
+                file<<"ret void\n";
+                file<<"}\n\n";
             }
         }
         else{

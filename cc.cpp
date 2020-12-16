@@ -82,7 +82,7 @@ main(int argc, char **argv)
 
   // Lab 2 Part 4 ////////////////////////////////////
   if(ret == 0){
-    printAST(ast_root);
+    // printAST(ast_root);
     optimize(ast_root);
     printAST(ast_root);
   }

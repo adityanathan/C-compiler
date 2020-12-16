@@ -6,7 +6,7 @@ target triple = "x86_64-pc-linux-gnu"
 @a1 = dso_local constant i32 9, align 4
 @b = dso_local global i32 12, align 4
 @c = dso_local global float 1.000000e+00, align 4
-@.str = private unnamed_addr constant [3 x i8] c"%d\00", align 1
+@.str = private unnamed_addr constant [4 x i8] c"%d\0A\00", align 1
 
 ; Function Attrs: noinline nounwind optnone uwtable
 define dso_local void @empty(i32* %0) #0 {
@@ -15,20 +15,22 @@ define dso_local void @empty(i32* %0) #0 {
   store i32* %0, i32** %2, align 8
   store i32 4, i32* %3, align 4
   %4 = load i32, i32* %3, align 4
-  %5 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i64 0, i64 0), i32 %4)
+  %5 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i64 0, i64 0), i32 %4)
   %6 = load i32, i32* @b, align 4
   %7 = add nsw i32 %6, 1
   store i32 %7, i32* @b, align 4
-  br label %8
+  %8 = load i32, i32* @b, align 4
+  %9 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i64 0, i64 0), i32 %8)
+  br label %10
 
-8:                                                ; preds = %9, %1
-  br i1 false, label %9, label %11
+10:                                               ; preds = %11, %1
+  br i1 false, label %11, label %13
 
-9:                                                ; preds = %8
-  %10 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([3 x i8], [3 x i8]* @.str, i64 0, i64 0), i32 1)
-  br label %8
+11:                                               ; preds = %10
+  %12 = call i32 (i8*, ...) @printf(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @.str, i64 0, i64 0), i32 1)
+  br label %10
 
-11:                                               ; preds = %8
+13:                                               ; preds = %10
   ret void
 }
 
