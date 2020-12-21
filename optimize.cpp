@@ -28,6 +28,13 @@ void alter_postfix(AST* root) {
         
         AST* temp = createAST(1, "unary_expression", {root->children[1], root->children[0]});
         runner->postfix_cgen.push_back(temp);
+        // cout<<runner.size()<<endl;
+
+        *root = *(root->children[0]);
+    }
+    else {
+        for(auto x: root->children)
+            alter_postfix(x);
     }
 }
 
@@ -119,21 +126,33 @@ val* evaluate(AST* root) {
         }
         return cond;
     }
-    else if(root_op=="OR_OP" || root_op=="AND_OP" || root_op=="|" || root_op=="^"
+    else if (root_op=="OR_OP" || root_op=="AND_OP"){
+        val* left = evaluate(root->children[0]); val* right = evaluate(root->children[1]);
+        val* res = new val; res->valid = true;
+        if (root_op=="OR_OP") {
+            if(left->valid && left->bval) {res->type = BOOLV; res->bval = true;}
+            else if (right->valid && right->bval) {res->type = BOOLV; res->bval = true;}
+            else if (right->valid && left->valid) {res->type = BOOLV; res->bval = left->bval || right->bval;}
+            else return create_dummy();
+        }
+        else if (root_op=="AND_OP") {
+            if(left->valid && !left->bval) {res->type = BOOLV; res->bval = false;}
+            else if (right->valid && !right->bval) {res->type = BOOLV; res->bval = false;}
+            else if (right->valid && left->valid) {res->type = BOOLV; res->bval = left->bval && right->bval;}
+            else return create_dummy();
+        }
+        *root = *create_from_val(res);
+        return res;
+    }
+    else if( root_op=="|" || root_op=="^" || root_op=="/" || root_op=="*"
             || root_op=="&" || root_op=="EQ_OP" || root_op=="NE_OP" || root_op=="GE_OP" 
             || root_op=="LE_OP" || root_op==">" || root_op=="<" || root_op=="LEFT_OP" 
-            || root_op=="RIGHT_OP" || root_op=="+" || root_op=="-" || root_op=="%" || root_op=="/" || root_op=="*")
+            || root_op=="RIGHT_OP" || root_op=="+" || root_op=="-" || root_op=="%")
     {
         val* left = evaluate(root->children[0]); val* right = evaluate(root->children[1]);
         if(left->valid && right->valid){
             val* res = new val; res->valid = true;
-            if (root_op=="OR_OP") {
-                res->type = BOOLV; res->bval = left->bval || right->bval;
-            }
-            else if (root_op=="AND_OP") {
-                res->type = BOOLV; res->bval = left->bval && right->bval;
-            }
-            else if (root_op=="|") {
+            if (root_op=="|") {
                 res->type = INTV; res->ival = left->ival | right->ival;   
             }
             else if (root_op=="^") {

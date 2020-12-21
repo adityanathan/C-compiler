@@ -30,7 +30,7 @@ struct identifier_node {
     // for variables and funcs ///////////
     string type;
     string ll_type;
-    int pointer_level; //number of stars
+    int pointer_level = 0; //number of stars
     bool global_var;
     /////////////////////////////////
 

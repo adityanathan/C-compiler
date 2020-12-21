@@ -20,6 +20,7 @@
         "atomic": "cpp",
         "*.tcc": "cpp",
         "streambuf": "cpp",
-        "memory_resource": "cpp"
+        "memory_resource": "cpp",
+        "thread": "cpp"
     }
 }

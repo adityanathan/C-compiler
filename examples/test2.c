@@ -13,7 +13,6 @@ int fibonacci(int a, int b, int n)
 		return a;
 
 	while (n > 0) {
-		int a1 = 2, b2 = 2;
 		int t;
 		t = b;
 		b = a+b;
@@ -27,7 +26,7 @@ int fibonacci(int a, int b, int n)
 int main()
 {
 //   int a = fibonacci(factorial(1), factorial(2), factorial(5));
-	int a = fibonacci(0,1,5);
-  printf("%d", a);
+	int a = fibonacci(0,1,10);
+  printf("%d\n", a);
   return a;
 }

@@ -320,7 +320,9 @@ identifier_node* check_scope(AST* root, unordered_map<string, ll_node*>& symbol_
     }
 }
 
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// Lab 2 Part 3 /////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 void str_replace(string& a, string f, string r) {
     // f - find, r - replace
@@ -453,12 +455,28 @@ pair<string,string> load(identifier_node* node){
     return make_pair(reg, ss.str());
 }
 
+pair<string,string> load(string ll_type, string input_reg){
+    // ret = register, llvm_code
+    stringstream ss;
+    string reg = get_register();
+    ss<<reg<<" = load "<<ll_type<<", "<<ll_type<<"* "<<input_reg<<"\n";
+    return make_pair(reg, ss.str());
+}
+
 string store(identifier_node* node, string register_val){
     // returns llvm code
     // register_val could be a reg or a val
     stringstream ss;
     string type = node->ll_type;
     ss<<"store "<<type<<" "<<register_val<<", "<<type<<"* "<<get_ll_ptr(node)<<"\n";
+    return ss.str();
+}
+
+string store(string ll_type, string src_reg, string dest_reg){
+    // returns llvm code
+    // register_val could be a reg or a val
+    stringstream ss;
+    ss<<"store "<<ll_type<<" "<<src_reg<<", "<<ll_type<<"* "<<dest_reg<<"\n";
     return ss.str();
 }
 
@@ -564,6 +582,17 @@ pair<string, string> cgen_binary_exp(AST* root, unordered_map<string, ll_node*>&
     return make_pair(left_type, result_register);
 }
 
+string find_id(AST* root){
+    if(root->node_string == "ID") return root->value;
+    else {
+        for(auto x: root->children){
+            string temp = find_id(x);
+            if(temp != "") return temp;
+        }
+    }
+    return "";
+}
+
 pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>& symtable, int scope_level){
     // return type = type, result register
     // meant to handle everything starting from assignment_expression non_terminal because (expression = list of assignment_expression)
@@ -581,20 +610,25 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         return temp;
     }
     else if (root_op=="assignment"){
-        // assuming lval = ID
         // returns assigned value
-        if(root->children[0]->node_string != "ID")
-            throw string("Error: assignment requires lvalue to be an identifier\n");
+        if(root->children[0]->node_string == "unary_expression") {
+            string l_type, l_result;
+            tie(l_type, l_result) = cgen_expression(root->children[0], symtable, scope_level);
+            if(l_type.back() != '*') throw "LHS of assignment must have a suitable lvalue\n";
 
-        identifier_node* id = get_sym(root->children[0], symtable);
-        string type, result;
-        tie(type, result) = cgen_expression(root->children[1], symtable, scope_level);
-        // if(type!=id->type) {
-        //     string temp = bitcast(make_pair(type, result), id->type);
-        //     result = temp; type = id->type;
-        // }
-        file<<store(id, result);
-        return make_pair(id->ll_type, result);
+            string r_type, r_result;
+            tie(r_type, r_result) = cgen_expression(root->children[1], symtable, scope_level);
+            file<<store(l_type, r_result, l_result);
+            return make_pair(l_type, r_result);
+        }
+        else if (root->children[0]->node_string == "ID") {
+            identifier_node* id = get_sym(root->children[0], symtable);
+            string r_type, r_result;
+            tie(r_type, r_result) = cgen_expression(root->children[1], symtable, scope_level);
+            file<<store(id, r_result);
+            return make_pair(id->ll_type, r_result);
+        }
+        else throw string("Error: assignment with "+find_id(root->children[0])+"requires suitable lvalue\n");
     }
     else if (root_op=="ID"){
         identifier_node* id = get_sym(root, symtable);
@@ -650,14 +684,14 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         if(unary_op == "INC_OP" || unary_op =="DEC_OP"){
             unordered_map<string, string> temp_d = {{"INC_OP", "add"}, {"DEC_OP","sub"}};
             string type, result;
-            if(root->children[1]->node_string != "ID") throw string("Error: increment and decrement operators can only be applied to identifiers\n");
+            if(root->children[1]->node_string != "ID") throw string("Error: increment and decrement operators can only be applied to identifiers (should not be pointers) \n");
             identifier_node* id = get_sym(root->children[1], symtable);
             pair<string,string> temp = load(id);
             file<<temp.second;
 
             string old_val = temp.first;
             string new_val = get_register();
-            file<<new_val<<" = "<<temp_d[root_op]<<" "<<id->ll_type<<" "<<old_val<<", "<<"1"<<"\n";
+            file<<new_val<<" = "<<temp_d.at(unary_op)<<" "<<id->ll_type<<" "<<old_val<<", "<<"1"<<"\n";
             file<<store(id, new_val);
             return make_pair(id->ll_type, new_val);
         }
@@ -667,11 +701,17 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
             return make_pair(print_type(id->type, id->pointer_level+1), get_ll_ptr(id));
         }
         else if (unary_op == "*"){
-            if(root->children[1]->node_string != "ID") throw string("Error: * operator can only be applied to identifiers\n");
-            identifier_node* id = get_sym(root->children[1], symtable);
-            pair<string, string> temp = load(id);
-            file<<temp.second;
-            return make_pair(print_type(id->type, id->pointer_level-1), temp.first);
+            if(root->children[1]->node_string == "ID" || root->children[1]->node_string == "unary_expression"){
+                string type, reg;
+                tie(type, reg) = cgen_expression(root->children[1], symtable, scope_level);
+                if(type.back() != '*') throw string("Error: * operator can only be applied to identifiers which are pointers\n");
+                // type will definitely have a * at the end since it is a pointer
+                type.pop_back(); // pop the last * because it's been dereferenced by one level
+                pair<string, string> temp = load(type, reg);
+                file<<temp.second;
+                return make_pair(type, temp.first);
+            }
+            else throw string("Error: * operator can only be applied appropriate lvalues\n");
         }
         else if (unary_op == "+"){
             return cgen_expression(root->children[1], symtable, scope_level);
@@ -750,21 +790,9 @@ pair<string, string> cgen_expression(AST* root, unordered_map<string, ll_node*>&
         return make_pair(fn->ll_type, result_reg);
     }
     else if (root_op == "postfix_expression"){
-        // // This is wrong. This does normal prefix
-        // string op = root->children[1]->node_string;
-        // unordered_map<string, string> temp_d = {{"INC_OP", "add"}, {"DEC_OP","sub"}};
-        // string type, result;
-        // if(root->children[0]->node_string != "ID") throw string("Error: increment and decrement operators can only be applied to identifiers\n");
-        // identifier_node* id = get_sym(root->children[0], symtable);
-        // pair<string,string> temp = load(id);
-        // file<<temp.second;
-
-        // string old_val = temp.first;
-        // string new_val = get_register();
-        // file<<new_val<<" = "<<temp_d[op]<<" "<<id->ll_type<<" "<<old_val<<", "<<"1"<<"\n";
-        // file<<store(id, new_val);
-        // return make_pair(id->ll_type, new_val);
-        throw string("Postfix expression supposed to be converted to prefix by optimizer");
+        if(root->children[0]->node_string != "ID") throw string("Error: increment and decrement operators can only be applied to identifiers\n");
+        // return identifier. incrementing handled by postfix_cgen
+        return cgen_expression(root->children[0], symtable, scope_level);
     }
     else if (root_op == "I_CONSTANT"){
         string value = root->value;
